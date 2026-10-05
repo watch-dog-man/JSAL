@@ -1,0 +1,1890 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="JSAL — client-side JavaScript static analysis tool for security testing">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' blob:; script-src 'self' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline'; connect-src *; img-src 'self' data:;">
+<title>JSAL</title>
+<style>
+:root {
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #111111;
+  --bg-input: #141414;
+  --bg-table: #0d0d0d;
+  --text-primary: #d7d7d7;
+  --text-secondary: #9a9a9a;
+  --accent: #ff2828;
+  --accent-hover: #cc2020;
+  --accent-glow: rgba(255, 40, 40, 0.08);
+  --green: #00ff88;
+  --green-dim: #00cc6a;
+  --border: #1e1e1e;
+  --border-highlight: #b10000;
+  --row-hover: rgba(255, 40, 40, 0.06);
+  --row-selected: rgba(255, 40, 40, 0.12);
+  --danger: #ff4444;
+  --success: #00ff88;
+  --warning: #ffaa00;
+  --tab-bg: #111111;
+  --btn-bg: #1a1a1a;
+  --btn-hover: #252525;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Courier New', 'Fira Code', monospace; background: var(--bg-primary); color: var(--text-primary); min-height: 100vh; }
+#app { max-width: 1400px; margin: 0 auto; padding: 16px; }
+.header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--border); margin-bottom: 14px; }
+.header-left { display: flex; align-items: center; gap: 14px; }
+.header-left h1 { font-size: 1.2rem; font-weight: 700; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; text-shadow: 0 0 20px rgba(255,40,40,0.3); }
+.header-left h1::before { content: '~$ '; color: var(--green); font-weight: 400; }
+.stats { font-size: 0.8rem; color: var(--green-dim); font-family: 'Courier New', monospace; letter-spacing: 1px; }
+.header-right { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+button, .file-label { background: var(--btn-bg); color: var(--text-primary); border: 1px solid var(--border); padding: 6px 14px; border-radius: 2px; cursor: pointer; font-size: 0.8rem; font-family: 'Courier New', monospace; white-space: nowrap; transition: all 0.15s; text-transform: uppercase; letter-spacing: 0.5px; }
+button:hover, .file-label:hover { background: var(--btn-hover); border-color: var(--accent); color: var(--accent); }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, .file-label:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+button.primary { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 700; }
+button.primary:hover:not(:disabled) { background: var(--accent-hover); box-shadow: 0 0 15px rgba(255,40,40,0.3); }
+button.danger { border-color: var(--danger); color: var(--danger); }
+button.danger:hover { background: rgba(255,68,68,0.12); }
+input[type="text"], select { background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border); padding: 6px 10px; border-radius: 2px; font-size: 0.8rem; font-family: 'Courier New', monospace; outline: none; }
+input[type="text"]:focus, select:focus { border-color: var(--accent); box-shadow: 0 0 8px rgba(255,40,40,0.15); }
+select { min-width: 120px; }
+.input-section { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 3px; padding: 12px; margin-bottom: 14px; position: relative; }
+.input-section.dragover { border-color: var(--accent); border-style: dashed; background: var(--accent-glow); }
+textarea { width: 100%; height: 140px; background: var(--bg-input); color: var(--green); border: 1px solid var(--border); border-radius: 2px; padding: 10px; font-family: 'Courier New', monospace; font-size: 0.82rem; resize: vertical; outline: none; line-height: 1.5; }
+textarea:focus { border-color: var(--accent); box-shadow: 0 0 8px rgba(255,40,40,0.15); }
+textarea::placeholder { color: var(--text-secondary); }
+.input-controls { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.input-controls input[type="text"] { flex: 1; min-width: 200px; }
+input[type="file"] { display: none; }
+.file-label { display: inline-flex; align-items: center; gap: 4px; }
+.drop-hint { font-size: 0.72rem; color: var(--text-secondary); margin-left: 4px; }
+.progress-container { display: none; margin-top: 10px; }
+.progress-container.active { display: block; }
+.progress-bar-wrap { background: var(--bg-input); border: 1px solid var(--border); border-radius: 2px; height: 20px; overflow: hidden; position: relative; }
+.progress-bar { height: 100%; background: linear-gradient(90deg, var(--accent), #ff6644); transition: width 0.2s; width: 0%; }
+.progress-bar.indeterminate { width: 30%; animation: indeterminate 1.2s ease-in-out infinite; }
+@keyframes indeterminate { 0% { transform: translateX(-100%); } 100% { transform: translateX(430%); } }
+.progress-info { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; font-size: 0.75rem; color: var(--text-secondary); }
+.progress-info .file-size { color: var(--warning); font-family: 'Courier New', monospace; }
+.queue-info { margin-top: 8px; font-size: 0.75rem; color: var(--text-secondary); }
+.queue-info span { color: var(--accent); }
+.tabs-bar { display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 0; }
+.tab-btn { background: transparent; color: var(--text-secondary); border: 1px solid transparent; border-bottom: none; padding: 7px 10px; cursor: pointer; font-size: 0.72rem; font-family: 'Courier New', monospace; border-radius: 2px 2px 0 0; transition: all 0.15s; text-transform: uppercase; letter-spacing: 0.3px; }
+.tab-btn:hover { color: var(--text-primary); background: rgba(255,40,40,0.04); }
+.tab-btn.active { color: var(--accent); border-color: var(--border-highlight); background: var(--accent-glow); font-weight: 700; border-bottom: 2px solid var(--accent); margin-bottom: -1px; }
+.results-toolbar { display: flex; align-items: center; justify-content: space-between; background: var(--bg-secondary); border: 1px solid var(--border); border-top: none; padding: 6px 12px; }
+.results-toolbar-label { font-size: 0.78rem; color: var(--text-secondary); }
+.results-toolbar-actions { display: flex; gap: 6px; }
+.results-toolbar-actions button { padding: 4px 12px; font-size: 0.75rem; }
+.results-container { background: var(--bg-table); border: 1px solid var(--border); border-top: none; border-radius: 0 0 3px 3px; min-height: 200px; max-height: 60vh; overflow-y: auto; }
+.result-table { display: none; width: 100%; }
+.result-table.active { display: table; }
+.result-table { border-collapse: collapse; }
+.result-table th { background: var(--bg-secondary); color: var(--text-secondary); padding: 8px 12px; text-align: left; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid var(--border); cursor: pointer; user-select: none; position: sticky; top: 0; z-index: 1; font-family: 'Courier New', monospace; }
+.result-table th:hover { color: var(--accent); }
+.result-table td { padding: 6px 12px; border-bottom: 1px solid var(--border); font-size: 0.8rem; font-family: 'Courier New', monospace; word-break: break-all; color: var(--green-dim); }
+.result-table tr:hover td { background: var(--row-hover); }
+.result-table tr.selected td { background: var(--row-selected); }
+.result-table .col-value { width: 75%; }
+.result-table .col-source { width: 25%; color: var(--text-secondary); }
+.empty-msg { padding: 40px; text-align: center; color: var(--text-secondary); font-size: 0.85rem; }
+.toast { position: fixed; bottom: 20px; right: 20px; background: var(--green); color: #000; padding: 10px 20px; border-radius: 2px; font-size: 0.82rem; font-weight: 700; font-family: 'Courier New', monospace; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 999; text-transform: uppercase; }
+.toast.show { opacity: 1; }
+.toast.error { background: var(--danger); color: #fff; }
+.method-badge { display: inline-block; padding: 2px 8px; border-radius: 2px; font-size: 0.7rem; font-weight: 700; font-family: 'Courier New', monospace; text-align: center; min-width: 52px; letter-spacing: 0.5px; }
+.method-get { background: rgba(0,255,136,0.12); color: var(--green); }
+.method-post { background: rgba(255,40,40,0.12); color: var(--accent); }
+.method-put { background: rgba(255,170,0,0.12); color: var(--warning); }
+.method-delete { background: rgba(255,68,68,0.12); color: var(--danger); }
+.method-patch { background: rgba(204,153,255,0.12); color: #cc99ff; }
+.method-head, .method-options, .method-unknown { background: rgba(138,138,138,0.12); color: var(--text-secondary); }
+#table-endpoints .col-method { width: 70px; text-align: center; }
+#table-endpoints .col-endpoint { width: 30%; }
+#table-endpoints .col-params { width: 30%; color: var(--text-secondary); font-size: 0.75rem; }
+#table-endpoints .col-source { width: 20%; }
+#table-endpoints .col-actions { width: 55px; text-align: center; }
+.gen-btn { padding: 2px 8px !important; font-size: 0.7rem !important; background: var(--accent) !important; color: #000 !important; border: none !important; border-radius: 2px; cursor: pointer; font-weight: 700; text-transform: uppercase; }
+.gen-btn:hover { opacity: 0.85; box-shadow: 0 0 10px rgba(255,40,40,0.3); }
+.request-panel { background: var(--bg-secondary); border: 1px solid var(--accent); border-radius: 3px; margin-top: 12px; }
+.request-panel-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 8px; }
+.request-panel-title { font-weight: 700; font-size: 0.85rem; color: var(--accent); text-transform: uppercase; letter-spacing: 1px; }
+.request-panel-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.request-panel-controls label { font-size: 0.78rem; color: var(--text-secondary); display: flex; align-items: center; gap: 4px; }
+.custom-headers-wrap { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.custom-headers-wrap label { font-size: 0.75rem; color: var(--text-secondary); display: block; margin-bottom: 4px; }
+#customHeaders { width: 100%; background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border); border-radius: 2px; padding: 6px 10px; font-family: 'Courier New', monospace; font-size: 0.8rem; resize: vertical; outline: none; min-height: 38px; }
+#customHeaders:focus { border-color: var(--accent); }
+#customHeaders::placeholder { color: var(--text-secondary); opacity: 0.7; }
+.auto-headers { margin-top: 4px; }
+.auto-header-tag { display: inline-block; background: rgba(255,40,40,0.1); color: var(--accent); padding: 1px 8px; border-radius: 2px; font-size: 0.7rem; font-family: 'Courier New', monospace; margin-right: 4px; margin-bottom: 2px; cursor: pointer; border: 1px solid rgba(255,40,40,0.2); }
+.auto-header-tag:hover { background: rgba(255,40,40,0.2); }
+#requestOutput { width: 100%; min-height: 220px; background: var(--bg-input); color: var(--green); border: none; padding: 12px; font-family: 'Courier New', monospace; font-size: 0.82rem; resize: vertical; outline: none; border-radius: 0 0 3px 3px; line-height: 1.5; }
+.pagination { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 12px; background: var(--bg-secondary); border-bottom: 1px solid var(--border); }
+.pagination button { padding: 4px 10px; font-size: 0.75rem; min-width: 32px; }
+.pagination button.active { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 700; }
+.pagination .page-info { font-size: 0.75rem; color: var(--text-secondary); margin: 0 8px; }
+.per-page-select { font-size: 0.75rem; padding: 3px 6px; font-family: 'Courier New', monospace; }
+.custom-headers-toggle { display: flex; align-items: center; justify-content: space-between; padding: 6px 12px; cursor: pointer; user-select: none; border-bottom: 1px solid var(--border); }
+.custom-headers-toggle:hover { background: rgba(255,40,40,0.04); }
+.custom-headers-toggle .toggle-label { font-size: 0.75rem; color: var(--text-secondary); }
+.custom-headers-toggle .toggle-arrow { font-size: 0.7rem; color: var(--text-secondary); transition: transform 0.2s; }
+.custom-headers-toggle .toggle-arrow.open { transform: rotate(90deg); }
+.custom-headers-body { padding: 8px 12px; border-bottom: 1px solid var(--border); display: none; }
+.custom-headers-body.open { display: block; }
+.param-type { font-size: 0.65rem; padding: 1px 5px; border-radius: 2px; font-family: 'Courier New', monospace; margin-left: 3px; }
+.param-type-int { background: rgba(0,255,136,0.1); color: var(--green); }
+.param-type-uuid { background: rgba(204,153,255,0.1); color: #cc99ff; }
+.param-type-str { background: rgba(138,138,138,0.1); color: var(--text-secondary); }
+.param-type-email { background: rgba(255,40,40,0.1); color: var(--accent); }
+.param-type-bool { background: rgba(255,170,0,0.1); color: var(--warning); }
+.param-type-date { background: rgba(255,153,102,0.1); color: #ff9966; }
+.param-type-url { background: rgba(0,255,136,0.1); color: var(--green); }
+.param-detail { font-size: 0.7rem; color: var(--text-secondary); cursor: help; }
+#table-vulns tr[title] { cursor: help; }
+#table-sensitive tr[title] { cursor: help; }
+.scanner-section { background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 3px; padding: 12px; margin-bottom: 14px; }
+.scanner-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.scanner-header input[type="text"] { flex: 1; min-width: 200px; }
+.proxy-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.proxy-toggle { display: flex; align-items: center; gap: 5px; font-size: 0.75rem; color: var(--text-secondary); cursor: pointer; white-space: nowrap; }
+.proxy-toggle input[type="checkbox"] { accent-color: var(--accent); cursor: pointer; }
+.proxy-toggle input:checked + span { color: var(--green); }
+.proxy-row select { background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border); border-radius: 2px; padding: 3px 6px; font-size: 0.72rem; font-family: inherit; }
+.proxy-row input[type="text"] { flex: 1; min-width: 180px; font-size: 0.72rem; padding: 3px 6px; }
+.local-proxy-help { margin-top: 8px; padding: 10px; background: var(--bg-input); border: 1px solid var(--border); border-radius: 3px; font-size: 0.73rem; }
+.proxy-help-header { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.proxy-help-header .dot-on, .proxy-help-header .dot-off { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.proxy-help-header .dot-on { background: var(--green); box-shadow: 0 0 4px var(--green); }
+.proxy-help-header .dot-off { background: var(--danger); box-shadow: 0 0 4px var(--danger); }
+.proxy-help-header button { background: none; border: 1px solid var(--border); color: var(--text-secondary); cursor: pointer; padding: 1px 5px; border-radius: 2px; font-size: 0.8rem; }
+.proxy-help-header button:hover { color: var(--text-primary); border-color: var(--text-secondary); }
+.proxy-help-body p { color: var(--text-secondary); margin: 0 0 6px 0; }
+.proxy-cmd { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; flex-wrap: wrap; }
+.proxy-cmd .cmd-label { color: var(--text-secondary); min-width: 90px; }
+.proxy-cmd code { background: var(--bg-primary); color: var(--green-dim); padding: 3px 8px; border-radius: 2px; font-family: 'Courier New', monospace; font-size: 0.72rem; user-select: all; }
+.proxy-cmd .copy-cmd { background: none; border: 1px solid var(--border); color: var(--text-secondary); cursor: pointer; padding: 2px 6px; border-radius: 2px; font-size: 0.7rem; }
+.proxy-cmd .copy-cmd:hover { color: var(--green); border-color: var(--green); }
+.proxy-cmd .link-btn { background: none; border: none; color: var(--accent); cursor: pointer; text-decoration: underline; font-family: inherit; font-size: 0.72rem; padding: 0; }
+.proxy-cmd .link-btn:hover { color: var(--green); }
+.scanner-status { font-size: 0.75rem; color: var(--text-secondary); margin-top: 8px; }
+.scanner-status span { color: var(--green); }
+.js-list { margin-top: 10px; max-height: 240px; overflow-y: auto; border: 1px solid var(--border); border-radius: 2px; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+.js-list::-webkit-scrollbar { width: 6px; }
+.js-list::-webkit-scrollbar-track { background: transparent; }
+.js-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+.js-item { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--border); font-size: 0.78rem; font-family: 'Courier New', monospace; }
+.js-item:last-child { border-bottom: none; }
+.js-item:hover { background: var(--row-hover); }
+.js-item-url { flex: 1; color: var(--green-dim); word-break: break-all; overflow: hidden; text-overflow: ellipsis; }
+.js-item-size { color: var(--text-secondary); font-size: 0.7rem; min-width: 60px; text-align: right; }
+.js-item-status { min-width: 18px; text-align: center; font-size: 0.7rem; }
+.js-item-status.done { color: var(--green); }
+.js-item-status.err { color: var(--danger); }
+.js-item-status.wait { color: var(--text-secondary); }
+.js-item button { padding: 2px 8px; font-size: 0.68rem; }
+.scanner-actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.scanner-actions button { font-size: 0.75rem; }
+.js-item input[type="checkbox"] { accent-color: var(--accent); cursor: pointer; }
+@media (max-width: 1024px) {
+  #app { padding: 12px; }
+  .result-table .col-value { width: 65%; }
+  .result-table .col-source { width: 35%; }
+  #table-endpoints .col-params { display: none; }
+  #table-endpoints .col-endpoint { width: 45%; }
+  #table-endpoints .col-source { width: 30%; }
+}
+@media (max-width: 768px) {
+  #app { padding: 10px; }
+  .header { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .header-left { flex-wrap: wrap; }
+  .header-left h1 { font-size: 1rem; }
+  .stats { font-size: 0.7rem; }
+  .header-right { width: 100%; justify-content: flex-start; }
+  .header-right button { padding: 8px 12px; font-size: 0.72rem; min-height: 44px; }
+  .input-controls { flex-direction: column; }
+  .input-controls input[type="text"] { width: 100%; min-width: unset; }
+  .input-controls button, .input-controls .file-label { min-height: 44px; }
+  textarea { height: 100px; font-size: 0.78rem; }
+  .tabs-bar { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; flex-wrap: nowrap; }
+  .tabs-bar::-webkit-scrollbar { display: none; }
+  .tab-btn { padding: 10px 12px; font-size: 0.68rem; flex-shrink: 0; min-height: 44px; }
+  .results-container { max-height: 50vh; }
+  .result-table td { padding: 8px; font-size: 0.75rem; }
+  .result-table th { padding: 8px; font-size: 0.68rem; }
+  .results-toolbar { flex-wrap: wrap; gap: 6px; padding: 6px 8px; }
+  .results-toolbar-actions { flex-wrap: wrap; }
+  .results-toolbar-actions button { min-height: 44px; }
+  .pagination { flex-wrap: wrap; padding: 6px 8px; }
+  .pagination button { min-height: 44px; min-width: 44px; }
+  #table-endpoints .col-method { width: 50px; }
+  #table-endpoints .col-params { display: none; }
+  #table-endpoints .col-actions { display: none; }
+  .request-panel-header { flex-direction: column; }
+  .request-panel-controls { width: 100%; }
+  .scanner-header button { min-height: 44px; }
+  .scanner-actions button { min-height: 44px; }
+  select { min-height: 44px; }
+  input[type="text"] { min-height: 44px; }
+}
+@media (max-width: 480px) {
+  #app { padding: 8px; }
+  .header-left h1 { font-size: 0.9rem; letter-spacing: 1px; }
+  .stats { font-size: 0.65rem; width: 100%; }
+  .header-right { gap: 4px; }
+  .header-right button { padding: 4px 8px; font-size: 0.68rem; }
+  .header-right select { min-width: 90px; font-size: 0.72rem; }
+  .header-right input[type="text"] { width: 100%; }
+  .tab-btn { padding: 5px 6px; font-size: 0.64rem; letter-spacing: 0; }
+  .result-table .col-source { display: none; }
+  .result-table .col-value { width: 100%; }
+  #table-endpoints .col-source { display: none; }
+  #table-endpoints .col-endpoint { width: 60%; }
+  .results-toolbar-label { font-size: 0.7rem; }
+  .results-toolbar-actions button { padding: 3px 8px; font-size: 0.68rem; }
+  textarea { height: 80px; }
+  .input-section { padding: 8px; }
+  .header-right { flex-wrap: wrap; }
+  .header-right button { min-height: 44px; padding: 8px 10px; }
+  .tab-btn { min-height: 44px; padding: 8px 10px; }
+  .results-toolbar-actions button { min-height: 44px; padding: 6px 10px; }
+}
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.skip-link { position: absolute; top: -100%; left: 16px; background: var(--accent); color: #000; padding: 8px 16px; z-index: 1000; font-weight: 700; font-size: 0.85rem; border-radius: 0 0 3px 3px; text-decoration: none; }
+.skip-link:focus { top: 0; }
+</style>
+</head>
+<body>
+<a href="#main-content" class="skip-link">Skip to main content</a>
+<div id="app">
+  <header class="header" role="banner">
+    <div class="header-left">
+      <h1>JSAL</h1>
+      <span class="stats" id="stats" aria-live="polite" aria-atomic="true">E:0 | U:0 | S:0 | M:0 | F:0 | D:0 | V:0</span>
+    </div>
+    <div class="header-right">
+      <input type="text" id="search" placeholder="Search..." style="min-width:140px">
+      <select id="sourceFilter" aria-label="Filter by source"><option value="All">All Sources</option></select>
+      <button id="copyBtn">Copy</button>
+      <button id="copyAllBtn">Copy All</button>
+      <button id="clearBtn" class="danger">Clear</button>
+    </div>
+  </header>
+  <main id="main-content">
+  <div class="input-section" id="dropZone" aria-label="Code input area">
+    <textarea id="jsInput" placeholder="Paste JavaScript code here, or drag & drop .js files..."></textarea>
+    <div class="input-controls">
+      <button class="primary" id="analyzeBtn">Analyze</button>
+      <input type="file" id="fileInput" multiple accept=".js,.mjs,.cjs,.jsx,.ts,.tsx,.html,.htm">
+      <label for="fileInput" class="file-label">Upload Files</label>
+      <span class="drop-hint">or drag & drop</span>
+    </div>
+    <div class="progress-container" id="progressContainer">
+      <div class="progress-bar-wrap"><div class="progress-bar" id="progressBar"></div></div>
+      <div class="progress-info">
+        <span id="progressLabel">Analyzing...</span>
+        <span class="file-size" id="progressSize"></span>
+        <span id="progressTime"></span>
+      </div>
+    </div>
+    <div class="queue-info" id="queueInfo" style="display:none"></div>
+  </div>
+  <section class="scanner-section" id="scannerSection" aria-label="URL Scanner">
+    <div class="scanner-header">
+      <input type="text" id="scanUrl" placeholder="https://example.com or https://cdn.example.com/app.js">
+      <button class="primary" id="scanBtn">Fetch & Scan</button>
+    </div>
+    <div class="proxy-row">
+      <label class="proxy-toggle"><input type="checkbox" id="useProxy"><span>CORS Proxy</span></label>
+      <select id="proxySelect" aria-label="Proxy selection">
+        <option value="auto">Auto (try all)</option>
+        <option value="local">Local Proxy</option>
+        <option value="https://api.allorigins.win/get?url=">allorigins.win</option>
+        <option value="https://api.codetabs.com/v1/proxy?quest=">codetabs.com</option>
+        <option value="custom">Custom...</option>
+      </select>
+      <input type="text" id="customProxy" placeholder="https://your-proxy.com/?url=" style="display:none">
+      <span id="localProxyStatus" style="display:none"></span>
+    </div>
+    <div class="local-proxy-help" id="localProxyHelp" style="display:none">
+      <div class="proxy-help-header">
+        <span id="proxyStatusDot" class="dot-off"></span>
+        <span id="proxyStatusText">Checking...</span>
+        <button id="proxyCheckBtn" title="Re-check">&#x21bb;</button>
+      </div>
+      <div class="proxy-help-body">
+        <p>Run one of these commands in a terminal to start a local CORS proxy:</p>
+        <div class="proxy-cmd">
+          <span class="cmd-label">npx (any OS):</span>
+          <code id="cmdNpx">npx -y cors-anywhere --port 9090</code>
+          <button class="copy-cmd" data-target="cmdNpx" title="Copy">&#x2398;</button>
+        </div>
+        <div class="proxy-cmd">
+          <span class="cmd-label">or download:</span>
+          <button id="downloadProxyBtn" class="link-btn">cors-proxy.js</button>
+          <code>node cors-proxy.js</code>
+        </div>
+      </div>
+    </div>
+    <div class="scanner-status" id="scannerStatus" style="display:none" role="status" aria-live="polite"></div>
+    <div class="js-list" id="jsList" style="display:none"></div>
+    <div class="scanner-actions" id="scannerActions" style="display:none">
+      <button id="scanAllBtn" class="primary">Scan All</button>
+      <button id="scanSelectedBtn">Scan Selected</button>
+      <button id="selectAllJs">Select All</button>
+      <button id="deselectAllJs">Deselect All</button>
+    </div>
+  </section>
+  <div class="tabs-bar" id="tabsBar" role="tablist" aria-label="Finding categories">
+    <button class="tab-btn active" data-tab="endpoints" role="tab" aria-selected="true" aria-controls="table-endpoints">Endpoints (0)</button>
+    <button class="tab-btn" data-tab="urls" role="tab" aria-selected="false" aria-controls="table-urls">URLs (0)</button>
+    <button class="tab-btn" data-tab="secrets" role="tab" aria-selected="false" aria-controls="table-secrets">Secrets (0)</button>
+    <button class="tab-btn" data-tab="emails" role="tab" aria-selected="false" aria-controls="table-emails">Emails (0)</button>
+    <button class="tab-btn" data-tab="files" role="tab" aria-selected="false" aria-controls="table-files">Files (0)</button>
+    <button class="tab-btn" data-tab="sensitive" role="tab" aria-selected="false" aria-controls="table-sensitive">Sensitive (0)</button>
+    <button class="tab-btn" data-tab="vulns" role="tab" aria-selected="false" aria-controls="table-vulns">Vulns (0)</button>
+  </div>
+  <div class="results-toolbar" id="resultsToolbar">
+    <span class="results-toolbar-label" id="resultsCount">0 findings</span>
+    <div class="results-toolbar-actions">
+      <button id="exportJsonBtn" title="Export all findings as JSON">Save JSON</button>
+      <button id="exportTxtBtn" title="Export all findings as plain text">Save TXT</button>
+      <button id="exportCsvBtn" title="Export all findings as CSV">Save CSV</button>
+    </div>
+  </div>
+  <div class="pagination" id="pagination" style="display:none">
+    <button id="pagePrev">&#9664;</button>
+    <span id="pageButtons"></span>
+    <button id="pageNext">&#9654;</button>
+    <span class="page-info" id="pageInfo"></span>
+    <select class="per-page-select" id="perPage" aria-label="Results per page"><option value="50">50/page</option><option value="100" selected>100/page</option><option value="200">200/page</option><option value="500">500/page</option></select>
+  </div>
+  <div class="results-container" id="resultsContainer">
+    <table class="result-table active" id="table-endpoints" role="tabpanel" aria-label="Endpoints results"><thead><tr><th class="col-method" data-col="method" scope="col">Method</th><th class="col-endpoint" data-col="0" scope="col">Endpoint</th><th class="col-params" scope="col">Params</th><th class="col-source" data-col="1" scope="col">Source</th><th class="col-actions" scope="col"><span class="sr-only">Actions</span></th></tr></thead><tbody></tbody></table>
+    <table class="result-table" id="table-urls" role="tabpanel" aria-label="URLs results"><thead><tr><th class="col-value" data-col="0" scope="col">Value</th><th class="col-source" data-col="1" scope="col">Source</th></tr></thead><tbody></tbody></table>
+    <table class="result-table" id="table-secrets" role="tabpanel" aria-label="Secrets results"><thead><tr><th class="col-value" data-col="0" scope="col">Value</th><th class="col-source" data-col="1" scope="col">Source</th></tr></thead><tbody></tbody></table>
+    <table class="result-table" id="table-emails" role="tabpanel" aria-label="Emails results"><thead><tr><th class="col-value" data-col="0" scope="col">Value</th><th class="col-source" data-col="1" scope="col">Source</th></tr></thead><tbody></tbody></table>
+    <table class="result-table" id="table-files" role="tabpanel" aria-label="Files results"><thead><tr><th class="col-value" data-col="0" scope="col">Value</th><th class="col-source" data-col="1" scope="col">Source</th></tr></thead><tbody></tbody></table>
+    <table class="result-table" id="table-sensitive" role="tabpanel" aria-label="Sensitive data results"><thead><tr><th class="col-value" data-col="0" scope="col">Finding</th><th class="col-source" data-col="1" scope="col">Source</th></tr></thead><tbody></tbody></table>
+    <table class="result-table" id="table-vulns" role="tabpanel" aria-label="Vulnerabilities results"><thead><tr><th class="col-value" data-col="0" scope="col">Finding</th><th class="col-source" data-col="1" scope="col">Source</th></tr></thead><tbody></tbody></table>
+  </div>
+  <section class="request-panel" id="requestPanel" style="display:none" aria-label="HTTP Request Generator">
+    <div class="request-panel-header">
+      <span class="request-panel-title">HTTP Request (Burp)</span>
+      <div class="request-panel-controls">
+        <label>Host: <input type="text" id="requestHost" value="target.com" style="width:180px"></label>
+        <button id="copyRequestBtn" class="primary">Copy Request</button>
+        <button id="closeRequestBtn">Close</button>
+      </div>
+    </div>
+    <div class="custom-headers-toggle" id="customHeadersToggle">
+      <span class="toggle-label">Custom Headers <span id="customHeadersBadge" style="display:none;color:var(--accent)"></span></span>
+      <span class="toggle-arrow" id="customHeadersArrow">&#9654;</span>
+    </div>
+    <div class="custom-headers-body" id="customHeadersBody">
+      <textarea id="customHeaders" rows="2" placeholder="Authorization: Bearer eyJhbGciOiJ...&#10;Cookie: session=abc123"></textarea>
+      <div class="auto-headers" id="autoHeaders"></div>
+    </div>
+    <textarea id="requestOutput" aria-label="Generated HTTP request"></textarea>
+  </section>
+  </main>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+// ==================== PATTERNS (shared between main & worker) ====================
+// Defined as [source, flags] arrays to avoid double-escaping issues when serializing to Worker
+
+const ENDPOINT_PATTERN_DEFS = [
+  ['["\']((https?:)?//[^"\']+/api/[a-zA-Z0-9/_:.@-]+)["\']', 'gi'],
+  ['["\'](/api/v?\\d*/[a-zA-Z0-9/_:.@-]{2,})["\']', 'gi'],
+  ['["\'](/v\\d+/[a-zA-Z0-9/_:.@-]{2,})["\']', 'gi'],
+  ['["\'](/rest/[a-zA-Z0-9/_:.@-]{2,})["\']', 'gi'],
+  ['["\'](/graphql[a-zA-Z0-9/_:.@-]*)["\']', 'gi'],
+  ['["\'](/oauth[0-9]*/[a-zA-Z0-9/_:.@-]+)["\']', 'gi'],
+  ['["\'](/auth[/][a-zA-Z0-9/_:.@-]*)["\']', 'gi'],
+  ['["\'](/login[a-zA-Z0-9/_:.@-]*)["\']', 'gi'],
+  ['["\'](/logout[a-zA-Z0-9/_:.@-]*)["\']', 'gi'],
+  ['["\'](/token[a-zA-Z0-9/_:.@-]*)["\']', 'gi'],
+  ['["\'](/admin/[a-zA-Z0-9/_:.@-]*)["\']', 'gi'],
+  ['["\'](/dashboard[a-zA-Z0-9/_:.@-]*)["\']', 'gi'],
+  ['["\'](/internal[a-zA-Z0-9/_:.@-]*)["\']', 'gi'],
+  ['["\'](/debug[a-zA-Z0-9/_:.@-]*)["\']', 'gi'],
+  ['["\'](/config[a-zA-Z0-9/_:.@-]*)["\']', 'gi'],
+  ['["\'](/backup[a-zA-Z0-9/_:.@-]*)["\']', 'gi'],
+  ['["\'](/private[a-zA-Z0-9/_:.@-]*)["\']', 'gi'],
+  ['["\'](/upload[a-zA-Z0-9/_:.@-]*)["\']', 'gi'],
+  ['["\'](/download[a-zA-Z0-9/_:.@-]*)["\']', 'gi'],
+  ['["\'](/\\.well-known/[a-zA-Z0-9/_:.@-]+)["\']', 'gi'],
+  ['["\'](/idp/[a-zA-Z0-9/_:.@-]+)["\']', 'gi'],
+];
+
+const URL_PATTERN_DEFS = [
+  ['["\'](https?://[^\\s"\'<>]{10,})["\']', 'g'],
+  ['["\'](wss?://[^\\s"\'<>]{10,})["\']', 'g'],
+  ['["\'](sftp://[^\\s"\'<>]{10,})["\']', 'g'],
+  ['(https?://[a-zA-Z0-9.-]+\\.s3[a-zA-Z0-9.-]*\\.amazonaws\\.com[^\\s"\'<>]*)', 'g'],
+  ['(https?://[a-zA-Z0-9.-]+\\.blob\\.core\\.windows\\.net[^\\s"\'<>]*)', 'g'],
+  ['(https?://storage\\.googleapis\\.com/[^\\s"\'<>]*)', 'g'],
+  ['(https://[a-z0-9-]+\\.firebaseio\\.com)', 'g'],
+];
+
+const SECRET_PATTERN_DEFS = [
+  ['(AKIA[0-9A-Z]{16})', 'g', 'AWS Key'],
+  ['(AIza[0-9A-Za-z\\-_]{35})', 'g', 'Google API'],
+  ['(sk_live_[0-9a-zA-Z]{24,})', 'g', 'Stripe Live'],
+  ['(ghp_[0-9a-zA-Z]{36})', 'g', 'GitHub PAT'],
+  ['(xox[baprs]-[0-9a-zA-Z\\-]{10,48})', 'g', 'Slack Token'],
+  ['(eyJ[A-Za-z0-9_-]{10,}\\.eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]+)', 'g', 'JWT'],
+  ['(-----BEGIN (?:RSA |EC )?PRIVATE KEY-----)', 'g', 'Private Key'],
+  ['(mongodb(?:\\+srv)?://[^\\s"\'<>]+)', 'g', 'MongoDB'],
+  ['(postgres(?:ql)?://[^\\s"\'<>]+)', 'g', 'PostgreSQL'],
+  ['algolia.{0,32}([a-z0-9]{32})\\b', 'gi', 'Algolia Admin API Key'],
+  ['algolia.{0,16}([A-Z0-9]{10})\\b', 'gi', 'Algolia Application ID'],
+  ['cloudflare.{0,32}(?:secret|private|access|key|token).{0,32}([a-z0-9_-]{38,42})\\b', 'gi', 'Cloudflare API Token'],
+  ['(?:cloudflare|x-auth-user-service-key).{0,64}(v1\\.0-[a-z0-9._-]{160,})\\b', 'gi', 'Cloudflare Service Key'],
+  ['(mysql://[a-z0-9._%+\\-]+:[^\\s:@]+@(?:\\[[0-9a-f:.]+\\]|[a-z0-9.-]+)(?::\\d{2,5})?(?:/[^\\s"\'?:]+)?(?:\\?[^\\s"\']*)?)', 'g', 'MySQL URI'],
+  ['\\b(sgp_[A-Z0-9_-]{60,70})\\b', 'g', 'Segment Public Token'],
+  ['(?:segment|sgmt).{0,16}(?:secret|private|access|key|token).{0,16}([A-Z0-9_-]{40,50}\\.[A-Z0-9_-]{40,50})', 'gi', 'Segment API Key'],
+  ['(?:facebook|fb).{0,8}(?:app|application).{0,16}(\\d{15})\\b', 'gi', 'Facebook App ID'],
+  ['(?:facebook|fb).{0,32}(?:api|app|application|client|consumer|secret|key).{0,32}([a-z0-9]{32})\\b', 'gi', 'Facebook Secret'],
+  ['(EAACEdEose0cBA[A-Z0-9]{20,})\\b', 'g', 'Facebook Access Token'],
+  ['\\b(ya29\\.[a-z0-9_-]{30,})\\b', 'g', 'Google OAuth2'],
+  ['\\b(\\d{8,10}:[a-zA-Z0-9_-]{35})\\b', 'g', 'Telegram Bot Token'],
+  ['(lin_api_[a-zA-Z0-9]{40})', 'g', 'Linear API Key'],
+  ['([hH]eroku.{0,16}[0-9a-f]{32})', 'g', 'Heroku API Key'],
+  ['(dop_v1_[a-z0-9]{64})', 'g', 'DigitalOcean Token'],
+  ['\\b(SK[0-9a-fA-F]{32})\\b', 'g', 'Twilio API Key'],
+  ['(SG\\.[\\w\\-]{22}\\.[\\w\\-]{43})', 'g', 'SendGrid API Key'],
+  ['(sl\\.[A-Za-z0-9_-]{20,100})', 'g', 'Dropbox Access Token'],
+  ['(glpat-[0-9a-zA-Z\\-_]{20})', 'g', 'GitLab Token'],
+  ['(shpat_[0-9a-fA-F]{32})', 'g', 'Shopify Access Token'],
+  ['bugsnag.{0,32}(?:key|token|api).{0,16}([a-f0-9]{32})\\b', 'gi', 'Bugsnag API Key'],
+  ['(?:datadog|dd).{0,32}(?:key|token|api|client).{0,16}([a-z0-9]{32})\\b', 'gi', 'Datadog API Key'],
+  ['(NRII-[a-zA-Z0-9]{20,})', 'g', 'New Relic Key'],
+];
+
+const EMAIL_PATTERN_DEF = ['([a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,6})', 'g'];
+
+const FILE_PATTERN_DEF = ['["\']([a-zA-Z0-9_/.-]+\\.(?:sql|csv|xlsx|xls|json|xml|yaml|yml|txt|log|conf|config|cfg|ini|env|bak|backup|old|orig|copy|key|pem|crt|cer|p12|pfx|doc|docx|pdf|zip|tar|gz|rar|7z|sh|bat|ps1|py|rb|pl))["\']', 'gi'];
+
+const SENSITIVE_PATTERN_DEFS = [
+  // Credit cards in string literals (Luhn validated separately)
+  ["[\"'](4\\d{3}[- ]?\\d{4}[- ]?\\d{4}[- ]?\\d{4})[\"']", 'g', 'Visa Card'],
+  ["[\"'](5[1-5]\\d{2}[- ]?\\d{4}[- ]?\\d{4}[- ]?\\d{4})[\"']", 'g', 'Mastercard'],
+  ["[\"'](3[47]\\d{2}[- ]?\\d{6}[- ]?\\d{5})[\"']", 'g', 'Amex Card'],
+  ["[\"'](6(?:011|5\\d{2})[- ]?\\d{4}[- ]?\\d{4}[- ]?\\d{4})[\"']", 'g', 'Discover Card'],
+  // Hardcoded passwords
+  ["(?:password|passwd|pwd|pass|passphrase)\\s*[:=]\\s*[\"'`]([^\"'`\\n]{4,60})[\"'`]", 'gi', 'Hardcoded Password'],
+  ["(?:default|admin|root|master|super)[-_]?(?:password|passwd|pwd|pass|secret)\\s*[:=]\\s*[\"'`]([^\"'`\\n]{3,60})[\"'`]", 'gi', 'Default Credential'],
+  // Default/service usernames
+  ["(?:username|user|login|account)\\s*[:=]\\s*[\"'`](root|admin|administrator|superadmin|sa|postgres|mysql|oracle|deploy|jenkins|ansible|vagrant|ubuntu|centos|www-data|tomcat|nginx|apache|ftp|git|svn|backup|operator|guest|demo|test|service|system|supervisor|manager)[\"'`]", 'gi', 'Default Username'],
+  // Internal/private IPs in strings
+  ["[\"']((?:https?://)?(?:10\\.\\d{1,3}|172\\.(?:1[6-9]|2\\d|3[01])|192\\.168)\\.\\d{1,3}\\.\\d{1,3}(?::\\d+)?(?:/[^\"']*)?)[\"']", 'g', 'Internal IP'],
+  // Internal hostnames
+  ["[\"'](https?://[a-zA-Z0-9_.-]+\\.(?:internal|local|corp|intranet|private|lan)(?::\\d+)?(?:/[^\"']*)?)[\"']", 'gi', 'Internal Host'],
+  // Sensitive localStorage/sessionStorage usage
+  ["(localStorage\\.setItem\\s*\\([\"'`](?:token|password|secret|session|auth|credit|card|ssn|key)[^)]*\\))", 'gi', 'Sensitive Storage'],
+  ["(sessionStorage\\.setItem\\s*\\([\"'`](?:token|password|secret|session|auth|credit|card|ssn|key)[^)]*\\))", 'gi', 'Sensitive Storage'],
+];
+
+const VULN_PATTERN_DEFS = [
+  // Username enumeration error messages
+  ["[\"'`]([^\"'`]*(?:user(?:name)?|account|email)\\s+(?:not\\s+found|does\\s*n.t\\s+exist|already\\s+(?:exists|taken|registered)|is\\s+(?:not\\s+registered|invalid|unknown|incorrect))[^\"'`]*)[\"'`]", 'gi', 'Username Enum'],
+  ["[\"'`]([^\"'`]*(?:invalid|incorrect|wrong|unknown)\\s+(?:username|user|login|account|credentials|email\\s+or\\s+password)[^\"'`]*)[\"'`]", 'gi', 'Auth Error Msg'],
+  // Security misconfigurations
+  ["(rejectUnauthorized\\s*[=:]\\s*false)", 'gi', 'TLS Bypass'],
+  ["(NODE_TLS_REJECT_UNAUTHORIZED\\s*=\\s*[\"'`]?0)", 'g', 'TLS Disabled'],
+  ["(secure\\s*:\\s*false)", 'gi', 'Insecure Cookie'],
+  ["(httpOnly\\s*:\\s*false)", 'gi', 'No HttpOnly'],
+  ["(sameSite\\s*:\\s*[\"'`]?none[\"'`]?)", 'gi', 'SameSite None'],
+  ["Access-Control-Allow-Origin[\"'\\s:]+([*])", 'gi', 'CORS Wildcard'],
+  // Dangerous DOM methods (XSS sinks)
+  ["\\b(eval\\s*\\([^)]{3,80}\\))", 'g', 'eval()'],
+  ["(document\\.write(?:ln)?\\s*\\([^)]{3,80}\\))", 'g', 'document.write()'],
+  ["(\\.[\\s]*innerHTML\\s*[+]?=\\s*[^;]{3,80})", 'g', 'innerHTML Assign'],
+  // Debug artifacts
+  ["(?:^|[;{\\n])\\s*(debugger)\\b", 'gm', 'Debugger Stmt'],
+  ["(//[#@]\\s*sourceMappingURL\\s*=\\s*\\S+)", 'g', 'Source Map'],
+];
+
+const METHOD_BEFORE_DEFS = [
+  ['\\.(get|post|put|delete|patch|head|options)\\s*\\(\\s*["\']?\\s*$', 'i'],
+  ['\\.open\\s*\\(\\s*["\'](GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)["\']\\s*,\\s*["\']?\\s*$', 'i'],
+];
+const METHOD_CONTEXT_DEFS = [
+  ['(?:method|type)\\s*[:=]\\s*["\'](GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)["\']', 'i'],
+];
+const BODY_EXTRACT_DEF = ['(?:body|data|payload)\\s*[:=]\\s*(?:JSON\\.stringify\\s*\\(\\s*)?\\{([^}]{1,500})\\}', ''];
+const PROP_EXTRACT_DEF = ['["\']?(\\w{2,})["\']?\\s*:', 'g'];
+const PATH_PARAM_DEF = ['[:](\\w+)', 'g'];
+const DIRECT_ARG_DEF = ['["\')\\]]\\s*,\\s*\\{([^}]{1,300})\\}', ''];
+const AUTH_HEADER_DEF = ['["\'](Authorization|Cookie|X-CSRF-Token|X-Csrf-Token|X-Api-Key|X-API-Key|X-Access-Token|X-Session-ID|X-Auth-Token|X-Forwarded-For|Api-Key|Csrf-Token|X-Request-ID|X-Requested-With)["\']\\s*:\\s*["\'\`]([^"\'`\\n]{3,300})["\'\`]', 'gi'];
+const AJAX_CONFIG_PROPS = ['method','headers','mode','cache','credentials','redirect','referrer','type','url','contentType','dataType','async','timeout','beforeSend','success','error','complete','processData','crossDomain','traditional','statusCode','accepts','xhr','signal','baseURL','responseType','withCredentials','observe','adapter','auth','maxContentLength','proxy','cancelToken','transformRequest','transformResponse','body','data','payload','json','Authorization','Cookie','Accept','Host','Origin','Referer','Connection','Content','Token','Bearer','Key','Session','Csrf'];
+
+const TYPE_HINT_RULES = [
+  { name: 'uuid', pattern: /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i, keywords: ['uuid','guid'] },
+  { name: 'email', keywords: ['email','mail','e_mail'] },
+  { name: 'bool', keywords: ['is','has','can','should','enable','disable','active','visible','hidden','checked','required','optional','verified','confirmed','approved','deleted','archived','published','draft','public','private','muted','blocked','banned','locked','read','unread'] },
+  { name: 'date', keywords: ['date','time','timestamp','created','updated','modified','deleted','expired','start','end','deadline','scheduled','birthday','dob','since','until','from','to'] },
+  { name: 'int', keywords: ['id','count','total','amount','price','quantity','qty','num','number','limit','offset','page','size','width','height','length','index','order','rank','score','rating','age','year','month','day','port','code','zip','version','weight','max','min','step','level','depth','retry','duration','interval'] },
+  { name: 'url', keywords: ['url','uri','href','link','redirect','callback','webhook','endpoint','origin','referer','referrer','homepage','website','avatar','image','icon','logo','photo','picture','thumbnail','src','source'] },
+];
+
+const NOISE_DOMAINS_ARR = [
+  'www.w3.org','schemas.openxmlformats.org','schemas.microsoft.com',
+  'purl.org','purl.oclc.org','openoffice.org','docs.oasis-open.org',
+  'sheetjs.openxmlformats.org','ns.adobe.com','www.xml.org',
+  'example.com','test.com','localhost','127.0.0.1',
+  'fusioncharts.com','jspdf.default.namespaceuri',
+  'npmjs.org','registry.npmjs.org',
+  'github.com/indutny','github.com/crypto-browserify',
+  'jqwidgets.com','ag-grid.com',
+  'cdnjs.cloudflare.com','cdn.jsdelivr.net','unpkg.com',
+  'fonts.googleapis.com','fonts.gstatic.com','ajax.googleapis.com',
+  'google-analytics.com','googletagmanager.com','code.jquery.com',
+];
+
+const NOISE_PATTERN_DEFS = [
+  ['^\\.\\.?/', ''], ['^[a-z]{2}(-[a-z]{2})?\\.js$', ''], ['^[a-z]{2}(-[a-z]{2})?$', ''],
+  ['-xform$', ''], ['^sha\\d*$', ''], ['^aes$|^des$|^md5$', ''],
+  ['^/[A-Z][a-z]+\\s', ''], ['^/[A-Z][a-z]+$', ''], ['^\\d+ \\d+ R$', ''],
+  ['^xl/', ''], ['^docProps/', ''], ['^_rels/', ''], ['^META-INF/', ''],
+  ['\\.xml$', ''], ['^worksheets/', ''], ['^theme/', ''],
+  ['^webpack', ''], ['^zone\\.js$', ''], ['^readable-stream/', ''],
+  ['^process/', ''], ['^stream/', ''], ['^buffer$', ''], ['^events$', ''],
+  ['^util$', ''], ['^path$', ''], ['^\\+', ''], ['^\\$\\{', ''],
+  ['^#', ''], ['^\\?ref=', ''], ['^/[a-z]$', ''], ['^/[A-Z]$', ''],
+  ['^http://$', ''], ['_ngcontent', ''],
+];
+
+const NOISE_STRINGS_ARR = [
+  'http://','https://','/a','/P','/R','/V','/W',
+  'zone.js','bn.js','hash.js','md5.js','sha.js','des.js',
+  'asn1.js','declare.js','elliptic.js',
+];
+
+// ==================== BUILD WORKER CODE ====================
+// Pass pattern defs as JSON data to avoid regex-in-string escaping issues
+
+const WORKER_SCRIPT = `
+const DATA = ${JSON.stringify({
+  endpoints: ENDPOINT_PATTERN_DEFS,
+  urls: URL_PATTERN_DEFS,
+  secrets: SECRET_PATTERN_DEFS,
+  email: EMAIL_PATTERN_DEF,
+  file: FILE_PATTERN_DEF,
+  noiseDomains: NOISE_DOMAINS_ARR,
+  noisePatterns: NOISE_PATTERN_DEFS,
+  noiseStrings: NOISE_STRINGS_ARR,
+  methodBefore: METHOD_BEFORE_DEFS,
+  methodContext: METHOD_CONTEXT_DEFS,
+  bodyExtract: BODY_EXTRACT_DEF,
+  propExtract: PROP_EXTRACT_DEF,
+  pathParam: PATH_PARAM_DEF,
+  directArg: DIRECT_ARG_DEF,
+  authHeader: AUTH_HEADER_DEF,
+  ajaxConfigProps: AJAX_CONFIG_PROPS,
+  sensitive: SENSITIVE_PATTERN_DEFS,
+  vulns: VULN_PATTERN_DEFS,
+  typeHintRules: TYPE_HINT_RULES.map(r => ({ name: r.name, pattern: r.pattern ? [r.pattern.source, r.pattern.flags] : null, keywords: r.keywords || null })),
+  _escRe: ['[.*+?^${}()|[\\]\\\\]', 'g'],
+  _escRepl: '\\$&',
+  _valPrefix: '["\']?',
+  _valSuffix: '["\']?\\s*[:=]\\s*["\']?([^"\'\\n,;}{]{1,60})',
+  _digitRe: ['^\\d+$', ''],
+  _boolRe: ['^(true|false)$', 'i'],
+  _allSameDigits: ['^(.)\\1+$', ''],
+  _staticPathRe: ['^/(fonts|images|img|static|assets|dist|build|vendor|node_modules|favicon|icons|media|css|js|styles)\\b', 'i'],
+  _staticExtRe: ['\\.(png|jpg|jpeg|gif|svg|css|js|woff|woff2|ttf|ico|map|webp|mp4|eot)$', 'i'],
+})};
+
+DATA._escRe = new RegExp(DATA._escRe[0], DATA._escRe[1]);
+DATA._digitRe = new RegExp(DATA._digitRe[0], DATA._digitRe[1]);
+DATA._boolRe = new RegExp(DATA._boolRe[0], DATA._boolRe[1]);
+DATA._allSameDigits = new RegExp(DATA._allSameDigits[0], DATA._allSameDigits[1]);
+DATA._staticPathRe = new RegExp(DATA._staticPathRe[0], DATA._staticPathRe[1]);
+DATA._staticExtRe = new RegExp(DATA._staticExtRe[0], DATA._staticExtRe[1]);
+
+const EP = DATA.endpoints.map(([s,f]) => new RegExp(s, f));
+const UP = DATA.urls.map(([s,f]) => new RegExp(s, f));
+const SP = DATA.secrets.map(([s,f,l]) => ({re: new RegExp(s, f), label: l}));
+const SENP = DATA.sensitive.map(([s,f,l]) => ({re: new RegExp(s, f), label: l}));
+const VULNP = DATA.vulns.map(([s,f,l]) => ({re: new RegExp(s, f), label: l}));
+const EM = new RegExp(DATA.email[0], DATA.email[1]);
+const FP = new RegExp(DATA.file[0], DATA.file[1]);
+const ND = new Set(DATA.noiseDomains);
+const NP = DATA.noisePatterns.map(([s,f]) => new RegExp(s, f));
+const NS = new Set(DATA.noiseStrings);
+const MB = DATA.methodBefore.map(([s,f]) => new RegExp(s, f));
+const MCX = DATA.methodContext.map(([s,f]) => new RegExp(s, f));
+const BXP = new RegExp(DATA.bodyExtract[0], DATA.bodyExtract[1]);
+const PXP = new RegExp(DATA.propExtract[0], DATA.propExtract[1]);
+const PPAT = new RegExp(DATA.pathParam[0], DATA.pathParam[1]);
+const DAP = new RegExp(DATA.directArg[0], DATA.directArg[1]);
+const AHP = new RegExp(DATA.authHeader[0], DATA.authHeader[1]);
+const ACP = new Set(DATA.ajaxConfigProps);
+const THR = DATA.typeHintRules.map(r => ({ name: r.name, pattern: r.pattern ? new RegExp(r.pattern[0], r.pattern[1]) : null, keywords: r.keywords }));
+
+function inferType(paramName, contextText) {
+  var low = paramName.toLowerCase();
+  for (var i = 0; i < THR.length; i++) {
+    var rule = THR[i];
+    if (rule.keywords) {
+      for (var j = 0; j < rule.keywords.length; j++) {
+        if (low === rule.keywords[j] || low.endsWith(rule.keywords[j]) || low.endsWith('_' + rule.keywords[j]) || low.startsWith(rule.keywords[j] + '_') || low.startsWith(rule.keywords[j])) {
+          return rule.name;
+        }
+      }
+    }
+  }
+  if (contextText) {
+    var escaped = paramName.replace(DATA._escRe, DATA._escRepl);
+    var valPat = new RegExp(DATA._valPrefix + escaped + DATA._valSuffix, "i");
+    var vm = contextText.match(valPat);
+    if (vm && vm[1]) {
+      var val = vm[1].trim();
+      if (DATA._digitRe.test(val)) return "int";
+      for (var i = 0; i < THR.length; i++) {
+        if (THR[i].pattern && THR[i].pattern.test(val)) return THR[i].name;
+      }
+      if (DATA._boolRe.test(val)) return "bool";
+    }
+  }
+  return "str";
+}
+
+function isValidEndpoint(v) {
+  if (!v || v.length < 3) return false;
+  if (NS.has(v)) return false;
+  for (const p of NP) { if (p.test(v)) return false; }
+  if (!v.startsWith('/')) return false;
+  const parts = v.split('/');
+  if (parts.length < 2 || parts.filter(p => p).every(p => p.length < 2)) return false;
+  if (DATA._staticPathRe.test(v)) return false;
+  if (DATA._staticExtRe.test(v)) return false;
+  return true;
+}
+function isValidUrl(v) {
+  if (!v || v.length < 15) return false;
+  const low = v.toLowerCase();
+  for (const d of ND) { if (low.includes(d)) return false; }
+  if (v.includes('{') || low.includes('undefined') || low.includes('null')) return false;
+  if (low.startsWith('data:')) return false;
+  if (['.css','.png','.jpg','.jpeg','.gif','.svg','.woff','.woff2','.ttf','.eot','.otf','.ico','.webp','.mp4','.mp3','.webm','.map'].some(e => low.endsWith(e))) return false;
+  if (['cdnjs.cloudflare.com','cdn.jsdelivr.net','unpkg.com','fonts.googleapis.com','fonts.gstatic.com','ajax.googleapis.com','code.jquery.com'].some(d => low.includes(d))) return false;
+  return true;
+}
+function isValidSecret(v) {
+  if (!v || v.length < 10) return false;
+  const low = v.toLowerCase();
+  if (['example','placeholder','your','xxxx','test','sample','dummy','fake','mock','changeme','todo','fixme','replace'].some(x => low.includes(x))) return false;
+  if (/^[a-f0-9]{32}$/.test(low) || /^[a-f0-9]{40}$/.test(low) || /^[a-f0-9]{64}$/.test(low)) return false;
+  if (DATA._allSameDigits.test(v)) return false;
+  if (/^[0-9]+$/.test(v)) return false;
+  return true;
+}
+function isValidEmail(v) {
+  if (!v || !v.includes('@')) return false;
+  const low = v.toLowerCase();
+  const domain = v.split('@').pop().toLowerCase();
+  if (['example.com','test.com','domain.com','placeholder.com'].includes(domain)) return false;
+  if (['example','test','placeholder','noreply'].some(x => low.includes(x))) return false;
+  return true;
+}
+function isValidFile(v) {
+  if (!v || v.length < 3) return false;
+  const low = v.toLowerCase();
+  if (['package.json','tsconfig.json','webpack','babel','eslint','prettier','node_modules','.min.','polyfill','vendor','chunk','bundle'].some(x => low.includes(x))) return false;
+  if (low.endsWith('.map')) return false;
+  if (low.endsWith('.json') && v.split('/').pop().length <= 7) return false;
+  return true;
+}
+function luhn(num) {
+  var digits = num.replace(/[^0-9]/g, '');
+  if (digits.length < 13 || digits.length > 19) return false;
+  var sum = 0, alt = false;
+  for (var i = digits.length - 1; i >= 0; i--) {
+    var n = parseInt(digits[i], 10);
+    if (alt) { n *= 2; if (n > 9) n -= 9; }
+    sum += n;
+    alt = !alt;
+  }
+  return sum % 10 === 0;
+}
+function isValidSensitive(v, label) {
+  if (!v || v.length < 2) return false;
+  if (label.indexOf('Card') >= 0 || label === 'Visa' || label === 'Mastercard' || label === 'Amex' || label === 'Discover') {
+    if (!luhn(v)) return false;
+    var d = v.replace(/[^0-9]/g, '');
+    if (DATA._allSameDigits.test(d)) return false;
+    if (d === '1234567890123456' || d === '0000000000000000') return false;
+    return true;
+  }
+  if (label.indexOf('Password') >= 0 || label.indexOf('Credential') >= 0) {
+    var low = v.toLowerCase().trim();
+    if (['password','passwd','pwd','pass','secret','***','xxx','your_password','placeholder','example','test','undefined','null','none','changeme','change_me','enter','input','type','string','required','field','value','label','text','hidden','submit','form','default'].indexOf(low) >= 0) return false;
+    if (v.length < 4) return false;
+    if (/^[a-z][a-zA-Z]*$/.test(v) && v.length < 10) return false;
+    return true;
+  }
+  if (label === 'Internal IP') {
+    if (v === '10.0.0.0' || v === '192.168.0.0' || v === '172.16.0.0') return false;
+    return true;
+  }
+  return true;
+}
+
+function detectMethod(text, idx) {
+  var start = Math.max(0, idx - 200);
+  var before = text.substring(start, idx);
+  for (var i = 0; i < MB.length; i++) {
+    MB[i].lastIndex = 0;
+    var m = before.match(MB[i]);
+    if (m) return m[1].toUpperCase();
+  }
+  var end = Math.min(text.length, idx + 250);
+  var after = text.substring(idx, end);
+  for (var i = 0; i < MCX.length; i++) {
+    MCX[i].lastIndex = 0;
+    var m = after.match(MCX[i]);
+    if (m) return m[1].toUpperCase();
+  }
+  return null;
+}
+
+function extractParams(text, idx, ep) {
+  var result = { query: [], body: [], path: [], headers: [] };
+  var qi = ep.indexOf('?');
+  if (qi !== -1) {
+    ep.substring(qi + 1).split('&').forEach(function(pair) {
+      var eq = pair.indexOf('=');
+      if (eq > 0) result.query.push(pair.substring(0, eq));
+      else if (pair) result.query.push(pair);
+    });
+  }
+  PPAT.lastIndex = 0;
+  var pm;
+  while ((pm = PPAT.exec(ep)) !== null) { result.path.push({name: pm[1], type: inferType(pm[1], null)}); }
+  var end = Math.min(text.length, idx + 500);
+  var rawAfter = text.substring(idx, end);
+  var semi = -1;
+  var depth = 0;
+  for (var si = 0; si < rawAfter.length; si++) {
+    if (rawAfter[si] === '(' || rawAfter[si] === '{') depth++;
+    if (rawAfter[si] === ')' || rawAfter[si] === '}') depth--;
+    if (rawAfter[si] === ';' && depth <= 0) { semi = si; break; }
+  }
+  var after = semi > 0 ? rawAfter.substring(0, semi + 1) : rawAfter.substring(0, 300);
+  var bodyNames = [];
+  function extractProps(content) {
+    PXP.lastIndex = 0;
+    var xm;
+    var found = false;
+    while ((xm = PXP.exec(content)) !== null) {
+      found = true;
+      if (!ACP.has(xm[1]) && bodyNames.indexOf(xm[1]) === -1) { bodyNames.push(xm[1]); result.body.push({name: xm[1], type: inferType(xm[1], after)}); }
+    }
+    if (!found) {
+      var idRe = /([a-zA-Z_][a-zA-Z0-9_]+)/g;
+      var im;
+      while ((im = idRe.exec(content)) !== null) {
+        if (!ACP.has(im[1]) && bodyNames.indexOf(im[1]) === -1) { bodyNames.push(im[1]); result.body.push({name: im[1], type: inferType(im[1], after)}); }
+      }
+    }
+  }
+  BXP.lastIndex = 0;
+  var bm = after.match(BXP);
+  if (bm && bm.index < 300) { extractProps(bm[1]); }
+  else {
+    DAP.lastIndex = 0;
+    var dm = after.match(DAP);
+    if (dm && dm.index < 80) { extractProps(dm[1]); }
+  }
+  AHP.lastIndex = 0;
+  var hm;
+  var seenH = {};
+  while ((hm = AHP.exec(after)) !== null) {
+    var hName = hm[1];
+    if (!seenH[hName.toLowerCase()]) {
+      seenH[hName.toLowerCase()] = true;
+      result.headers.push({name: hName, value: hm[2]});
+    }
+  }
+  return result;
+}
+
+function scan(text, re) {
+  const results = [];
+  let m;
+  re.lastIndex = 0;
+  while ((m = re.exec(text)) !== null) {
+    results.push(m[1] || m[0]);
+    if (!re.global) break;
+  }
+  return results;
+}
+
+self.onmessage = function(e) {
+  const { text, sourceName, seenKeys, id } = e.data;
+  if (!text || text.length < 50) {
+    self.postMessage({ id, findings: [], done: true, newKeys: [] });
+    return;
+  }
+
+  const seen = new Set(seenKeys);
+  const findings = [];
+  const total = EP.length + UP.length + SP.length + SENP.length + VULNP.length + 2;
+  let step = 0;
+
+  function tick() {
+    step++;
+    if (step % 5 === 0 || step === total) {
+      self.postMessage({ id, progress: Math.round((step / total) * 100) });
+    }
+  }
+
+  for (const re of EP) {
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      const v = (m[1] || m[0]).trim();
+      const k = 'endpoints:' + v;
+      if (!seen.has(k) && isValidEndpoint(v)) {
+        seen.add(k);
+        const method = detectMethod(text, m.index);
+        const params = extractParams(text, m.index, v);
+        findings.push({category:'endpoints',value:v,source:sourceName,method:method,params:params});
+      }
+      if (!re.global) break;
+    }
+    tick();
+  }
+  for (const re of UP) {
+    for (const raw of scan(text, re)) {
+      const v = raw.trim();
+      const k = 'urls:' + v;
+      if (!seen.has(k) && isValidUrl(v)) { seen.add(k); findings.push({category:'urls',value:v,source:sourceName}); }
+    }
+    tick();
+  }
+  for (const {re, label} of SP) {
+    for (const raw of scan(text, re)) {
+      const v = raw.trim();
+      if (isValidSecret(v)) {
+        const masked = v.length > 20 ? v.slice(0,10) + '...' + v.slice(-4) : v;
+        const display = '[' + label + '] ' + masked;
+        const raw = v.length > 20 ? '[' + label + '] ' + v : null;
+        const k = 'secrets:' + display;
+        if (!seen.has(k)) { seen.add(k); findings.push({category:'secrets',value:display,raw:raw,source:sourceName}); }
+      }
+    }
+    tick();
+  }
+  for (const {re, label} of SENP) {
+    re.lastIndex = 0;
+    var sm;
+    while ((sm = re.exec(text)) !== null) {
+      var sv = (sm[1] || sm[0]).trim();
+      if (isValidSensitive(sv, label)) {
+        var masked = sv;
+        if (label.indexOf('Card') >= 0 || label === 'Visa' || label === 'Mastercard' || label === 'Amex' || label === 'Discover') {
+          var digs = sv.replace(/[^0-9]/g, '');
+          masked = digs.slice(0, 4) + ' **** **** ' + digs.slice(-4);
+        } else if (label.indexOf('Password') >= 0 || label.indexOf('Credential') >= 0) {
+          masked = sv.length > 12 ? sv.slice(0,3) + '***' + sv.slice(-2) : '****';
+        }
+        var display = '[' + label + '] ' + masked;
+        var rawVal = masked !== sv ? '[' + label + '] ' + sv : null;
+        var sk = 'sensitive:' + label + ':' + sv;
+        if (!seen.has(sk)) { seen.add(sk); findings.push({category:'sensitive',value:display,raw:rawVal,source:sourceName}); }
+      }
+      if (!re.global) break;
+    }
+    tick();
+  }
+  for (const {re, label} of VULNP) {
+    re.lastIndex = 0;
+    var vm;
+    while ((vm = re.exec(text)) !== null) {
+      var vv = (vm[1] || vm[0]).trim();
+      if (vv.length >= 2) {
+        var display = '[' + label + '] ' + vv;
+        var vk = 'vulns:' + label + ':' + vv;
+        if (!seen.has(vk)) { seen.add(vk); findings.push({category:'vulns',value:display,source:sourceName}); }
+      }
+      if (!re.global) break;
+    }
+    tick();
+  }
+  for (const raw of scan(text, EM)) {
+    const v = raw.trim();
+    const k = 'emails:' + v;
+    if (!seen.has(k) && isValidEmail(v)) { seen.add(k); findings.push({category:'emails',value:v,source:sourceName}); }
+  }
+  tick();
+  for (const raw of scan(text, FP)) {
+    const v = raw.trim();
+    const k = 'files:' + v;
+    if (!seen.has(k) && isValidFile(v)) { seen.add(k); findings.push({category:'files',value:v,source:sourceName}); }
+  }
+  tick();
+
+  const newKeys = [];
+  for (const k of seen) { if (!seenKeys.includes(k)) newKeys.push(k); }
+  self.postMessage({ id, findings, done: true, newKeys });
+};
+`;
+
+// ==================== MAIN THREAD ====================
+
+const workerBlob = new Blob([WORKER_SCRIPT], { type: 'application/javascript' });
+const workerUrl = URL.createObjectURL(workerBlob);
+let worker = new Worker(workerUrl);
+let jobId = 0;
+let analyzing = false;
+let queue = [];
+let startTime = 0;
+
+const CATEGORIES = ['endpoints', 'urls', 'secrets', 'emails', 'files', 'sensitive', 'vulns'];
+const TITLES = ['Endpoints', 'URLs', 'Secrets', 'Emails', 'Files', 'Sensitive', 'Vulns'];
+const VULN_TOOLTIPS = {
+  'Username Enum': 'CWE-204: Observable Response Discrepancy\nError messages reveal whether a username/email exists, enabling account enumeration attacks.',
+  'Auth Error Msg': 'CWE-209: Information Exposure Through Error Message\nDetailed auth error messages help attackers distinguish valid from invalid credentials.',
+  'TLS Bypass': 'CWE-295: Improper Certificate Validation\nDisabling TLS certificate verification allows man-in-the-middle attacks.',
+  'TLS Disabled': 'CWE-295: Improper Certificate Validation\nSetting NODE_TLS_REJECT_UNAUTHORIZED=0 disables all TLS verification globally.',
+  'Insecure Cookie': 'CWE-614: Sensitive Cookie Without Secure Flag\nCookies sent over HTTP can be intercepted by network attackers.',
+  'No HttpOnly': 'CWE-1004: Sensitive Cookie Without HttpOnly Flag\nCookies accessible via JavaScript can be stolen through XSS attacks.',
+  'SameSite None': 'CWE-1275: Sensitive Cookie with Improper SameSite Attribute\nCookies with SameSite=None are sent in cross-site requests, enabling CSRF.',
+  'CORS Wildcard': 'CWE-942: Overly Permissive CORS Policy\nAccess-Control-Allow-Origin: * allows any origin to read responses.',
+  'eval()': 'CWE-95: Eval Injection\neval() executes arbitrary code. If user input reaches it, attackers gain full control.',
+  'document.write()': 'CWE-79: Cross-Site Scripting (DOM-based XSS)\ndocument.write() injects raw HTML. User-controlled input leads to XSS.',
+  'innerHTML Assign': 'CWE-79: Cross-Site Scripting (DOM-based XSS)\ninnerHTML parses HTML from strings. Unsanitized input enables XSS attacks.',
+  'Debugger Stmt': 'CWE-489: Active Debug Code\nLeft-over debugger statements halt execution in DevTools, exposing debug info in production.',
+  'Source Map': 'CWE-540: Inclusion of Sensitive Information in Source Code\nSource maps expose original source code, making reverse engineering trivial.',
+};
+
+const state = {
+  findings: { endpoints: [], urls: [], secrets: [], emails: [], files: [], sensitive: [], vulns: [] },
+  seenValues: new Set(),
+  sources: new Set(),
+  activeTab: 'endpoints',
+  selectedRow: null,
+  sortState: {},
+  page: {},
+};
+
+function clearState() {
+  CATEGORIES.forEach(c => state.findings[c] = []);
+  state.seenValues.clear();
+  state.sources.clear();
+  state.selectedRow = null;
+  state.sortState = {};
+  queue = [];
+  currentRequestItem = null;
+  document.getElementById('sourceFilter').innerHTML = '<option value="All">All Sources</option>';
+  document.getElementById('search').value = '';
+  document.getElementById('requestPanel').style.display = 'none';
+  updateQueueInfo();
+  refreshUI();
+}
+
+function hasFindings() {
+  return CATEGORIES.some(c => state.findings[c].length > 0);
+}
+
+function totalFindings() {
+  return CATEGORIES.reduce((s, c) => s + state.findings[c].length, 0);
+}
+
+function exportJSON() {
+  const data = {};
+  CATEGORIES.forEach(c => {
+    if (c === 'endpoints') {
+      data[c] = state.findings[c].map(f => ({
+        endpoint: f.value, method: f.method || null, params: f.params || null, source: f.source
+      }));
+    } else {
+      data[c] = state.findings[c].map(f => f.value);
+    }
+  });
+  downloadFile(JSON.stringify(data, null, 2), 'js_findings.json', 'application/json');
+}
+
+function exportTXT() {
+  const lines = [];
+  CATEGORIES.forEach(c => {
+    if (state.findings[c].length) {
+      lines.push('=== ' + c.toUpperCase() + ' ===');
+      state.findings[c].forEach(f => {
+        if (c === 'endpoints' && f.method) lines.push('[' + f.method + '] ' + f.value);
+        else lines.push(f.value);
+      });
+      lines.push('');
+    }
+  });
+  downloadFile(lines.join('\n'), 'js_findings.txt', 'text/plain');
+}
+
+function exportCSV() {
+  const lines = ['Category,Method,Value,Params,Source'];
+  CATEGORIES.forEach(c => {
+    state.findings[c].forEach(f => {
+      const method = f.method || '';
+      const params = f.params ? [...(f.params.query||[]),...(f.params.body||[]).map(p => typeof p === 'string' ? p : p.name),...(f.params.path||[]).map(p => typeof p === 'string' ? p : p.name)].join('; ') : '';
+      lines.push(c + ',"' + method + '","' + f.value.replace(/"/g, '""') + '","' + params.replace(/"/g, '""') + '","' + f.source.replace(/"/g, '""') + '"');
+    });
+  });
+  downloadFile(lines.join('\n'), 'js_findings.csv', 'text/csv');
+}
+
+function downloadFile(content, filename, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], { type }));
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  showToast('Saved: ' + filename);
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / 1048576).toFixed(2) + ' MB';
+}
+
+function showProgress(label, size) {
+  const pc = document.getElementById('progressContainer');
+  const bar = document.getElementById('progressBar');
+  pc.classList.add('active');
+  bar.style.width = '0%';
+  bar.classList.add('indeterminate');
+  document.getElementById('progressLabel').textContent = label;
+  document.getElementById('progressSize').textContent = size ? formatSize(size) : '';
+  document.getElementById('progressTime').textContent = '';
+  startTime = performance.now();
+}
+
+function updateProgress(pct) {
+  const bar = document.getElementById('progressBar');
+  bar.classList.remove('indeterminate');
+  bar.style.width = pct + '%';
+  document.getElementById('progressTime').textContent = ((performance.now() - startTime) / 1000).toFixed(1) + 's';
+}
+
+function hideProgress(count) {
+  const elapsed = ((performance.now() - startTime) / 1000).toFixed(1);
+  const bar = document.getElementById('progressBar');
+  bar.classList.remove('indeterminate');
+  bar.style.width = '100%';
+  document.getElementById('progressLabel').textContent = 'Done - ' + count + ' items found';
+  document.getElementById('progressTime').textContent = elapsed + 's';
+  setTimeout(() => document.getElementById('progressContainer').classList.remove('active'), 2000);
+}
+
+function updateQueueInfo() {
+  const qi = document.getElementById('queueInfo');
+  if (queue.length > 0) { qi.style.display = 'block'; qi.innerHTML = 'Queue: <span>' + queue.length + '</span> file(s) waiting'; }
+  else { qi.style.display = 'none'; }
+}
+
+function runAnalysis(text, sourceName) {
+  return new Promise(resolve => {
+    const id = ++jobId;
+    analyzing = true;
+    const sizeBytes = new Blob([text]).size;
+    showProgress('Analyzing: ' + sourceName, sizeBytes);
+    document.getElementById('analyzeBtn').disabled = true;
+    document.getElementById('scanBtn').disabled = true;
+
+    worker.onmessage = function(e) {
+      if (e.data.id !== id) return;
+      if (e.data.progress !== undefined) { updateProgress(e.data.progress); return; }
+      if (e.data.done) {
+        const { findings, newKeys } = e.data;
+        for (const k of (newKeys || [])) state.seenValues.add(k);
+        for (const f of findings) state.findings[f.category].push({ value: f.value, raw: f.raw || null, source: f.source, method: f.method || null, params: f.params || null });
+
+        if (sourceName && !state.sources.has(sourceName)) {
+          state.sources.add(sourceName);
+          const opt = document.createElement('option');
+          opt.value = sourceName; opt.textContent = sourceName;
+          document.getElementById('sourceFilter').appendChild(opt);
+        }
+
+        refreshUI();
+        hideProgress(findings.length);
+        analyzing = false;
+        document.getElementById('analyzeBtn').disabled = false;
+        document.getElementById('scanBtn').disabled = false;
+        resolve(findings.length);
+
+        if (queue.length > 0) {
+          const next = queue.shift();
+          updateQueueInfo();
+          runAnalysis(next.text, next.name).then(next.resolve);
+        }
+      }
+    };
+
+    worker.postMessage({ id, text, sourceName, seenKeys: [...state.seenValues] });
+  });
+}
+
+function enqueueAnalysis(text, sourceName) {
+  if (!text || text.trim().length < 50) { showToast('Text too short (min 50 chars)'); return Promise.resolve(0); }
+  if (analyzing) {
+    return new Promise(resolve => { queue.push({ text, name: sourceName, resolve }); updateQueueInfo(); showToast('Queued: ' + sourceName); });
+  }
+  return runAnalysis(text, sourceName);
+}
+
+// ==================== UI ====================
+
+function getPerPage() { return parseInt(document.getElementById('perPage').value) || 100; }
+function getPage(cat) { return state.page[cat] || 1; }
+
+function refreshUI() {
+  const searchText = document.getElementById('search').value.toLowerCase().trim();
+  const sourceVal = document.getElementById('sourceFilter').value;
+  const perPage = getPerPage();
+
+  CATEGORIES.forEach((cat, i) => {
+    const tbody = document.getElementById('table-' + cat).querySelector('tbody');
+    tbody.innerHTML = '';
+    let items = getFilteredItems(cat, searchText, sourceVal);
+    const sk = state.sortState[cat];
+    if (sk) {
+      const dir = sk.asc ? 1 : -1;
+      items = [...items].sort((a, b) => {
+        let va, vb;
+        if (sk.col === 'method') { va = a.method || ''; vb = b.method || ''; }
+        else if (sk.col === '0' || sk.col === 0) { va = a.value; vb = b.value; }
+        else { va = a.source; vb = b.source; }
+        return va.localeCompare(vb) * dir;
+      });
+    }
+    const renderFn = cat === 'endpoints' ? renderEndpointRows : renderRows;
+    const colSpan = cat === 'endpoints' ? 5 : 2;
+    const count = items.length;
+    const totalPages = Math.max(1, Math.ceil(count / perPage));
+    if (!state.page[cat] || state.page[cat] > totalPages) state.page[cat] = 1;
+    const page = state.page[cat];
+
+    if (count > 0) {
+      const start = (page - 1) * perPage;
+      const slice = items.slice(start, start + perPage);
+      renderFn(tbody, slice, cat);
+    } else {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td colspan="' + colSpan + '" class="empty-msg">No ' + TITLES[i].toLowerCase() + ' found</td>';
+      tbody.appendChild(tr);
+    }
+    document.querySelectorAll('.tab-btn')[i].textContent = TITLES[i] + ' (' + count + ')';
+  });
+
+  updatePagination();
+  updateStats();
+  const total = totalFindings();
+  document.getElementById('resultsCount').textContent = total + ' finding' + (total !== 1 ? 's' : '');
+}
+
+function updatePagination() {
+  const cat = state.activeTab;
+  const searchText = document.getElementById('search').value.toLowerCase().trim();
+  const sourceVal = document.getElementById('sourceFilter').value;
+  const items = getFilteredItems(cat, searchText, sourceVal);
+  const perPage = getPerPage();
+  const total = items.length;
+  const totalPages = Math.max(1, Math.ceil(total / perPage));
+  const page = getPage(cat);
+  const pag = document.getElementById('pagination');
+
+  if (total <= perPage) { pag.style.display = 'none'; return; }
+  pag.style.display = 'flex';
+  document.getElementById('pagePrev').disabled = page <= 1;
+  document.getElementById('pageNext').disabled = page >= totalPages;
+  document.getElementById('pageInfo').textContent = page + ' / ' + totalPages + ' (' + total + ' total)';
+
+  const btnsWrap = document.getElementById('pageButtons');
+  btnsWrap.innerHTML = '';
+  const maxBtns = 7;
+  let startP = Math.max(1, page - Math.floor(maxBtns / 2));
+  let endP = Math.min(totalPages, startP + maxBtns - 1);
+  if (endP - startP < maxBtns - 1) startP = Math.max(1, endP - maxBtns + 1);
+
+  if (startP > 1) { addPageBtn(btnsWrap, 1); if (startP > 2) { const sp = document.createElement('span'); sp.textContent = '...'; sp.style.cssText = 'color:var(--text-secondary);font-size:0.78rem;margin:0 2px'; btnsWrap.appendChild(sp); } }
+  for (let p = startP; p <= endP; p++) addPageBtn(btnsWrap, p, p === page);
+  if (endP < totalPages) { if (endP < totalPages - 1) { const sp = document.createElement('span'); sp.textContent = '...'; sp.style.cssText = 'color:var(--text-secondary);font-size:0.78rem;margin:0 2px'; btnsWrap.appendChild(sp); } addPageBtn(btnsWrap, totalPages); }
+}
+
+function addPageBtn(wrap, p, active) {
+  const btn = document.createElement('button');
+  btn.textContent = p;
+  if (active) btn.classList.add('active');
+  btn.addEventListener('click', () => { state.page[state.activeTab] = p; refreshUI(); document.getElementById('resultsContainer').scrollTop = 0; });
+  wrap.appendChild(btn);
+}
+
+function getVulnTooltip(value) {
+  const m = value.match(/^\[([^\]]+)\]/);
+  if (m && VULN_TOOLTIPS[m[1]]) return VULN_TOOLTIPS[m[1]];
+  return '';
+}
+
+function renderRows(tbody, items, category) {
+  const frag = document.createDocumentFragment();
+  for (const item of items) {
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td class="col-value">' + esc(item.value) + '</td><td class="col-source">' + esc(item.source) + '</td>';
+    if (category === 'vulns') {
+      const tip = getVulnTooltip(item.value);
+      if (tip) tr.title = tip;
+    }
+    tr.addEventListener('click', () => {
+      tbody.querySelectorAll('tr.selected').forEach(r => r.classList.remove('selected'));
+      tr.classList.add('selected');
+      const valTd = tr.querySelector('.col-value');
+      if (item.raw && valTd.textContent !== item.raw) {
+        valTd.textContent = item.raw;
+        state.selectedRow = item.raw;
+      } else {
+        const toCopy = item.raw || item.value;
+        copyText(toCopy);
+        showToast('Copied');
+        state.selectedRow = toCopy;
+      }
+    });
+    frag.appendChild(tr);
+  }
+  tbody.appendChild(frag);
+}
+
+function renderEndpointRows(tbody, items) {
+  const frag = document.createDocumentFragment();
+  for (const item of items) {
+    const tr = document.createElement('tr');
+    const method = item.method || '';
+    const mc = method ? 'method-' + method.toLowerCase() : 'method-unknown';
+    tr.innerHTML = '<td class="col-method"><span class="method-badge ' + mc + '">' + esc(method || '-') + '</span></td>' +
+      '<td class="col-endpoint">' + esc(item.value) + '</td>' +
+      '<td class="col-params">' + formatParamDetail(item.params) + '</td>' +
+      '<td class="col-source">' + esc(item.source) + '</td>' +
+      '<td class="col-actions"><button class="gen-btn" title="Generate HTTP request for Burp">Gen</button></td>';
+    tr.querySelector('.gen-btn').addEventListener('click', function(e) { e.stopPropagation(); generateRequest(item); });
+    tr.addEventListener('click', function() {
+      tbody.querySelectorAll('tr.selected').forEach(function(r) { r.classList.remove('selected'); });
+      tr.classList.add('selected');
+      state.selectedRow = item.value;
+      copyText(item.value);
+      showToast('Copied');
+    });
+    frag.appendChild(tr);
+  }
+  tbody.appendChild(frag);
+}
+
+function countParams(params) {
+  if (!params) return 0;
+  return (params.query ? params.query.length : 0) + (params.body ? params.body.length : 0) + (params.path ? params.path.length : 0);
+}
+
+let currentRequestItem = null;
+
+function generateRequest(item) {
+  currentRequestItem = item;
+  const host = document.getElementById('requestHost').value || 'target.com';
+  updateRequestOutput(item, host);
+  document.getElementById('requestPanel').style.display = 'block';
+  document.getElementById('requestPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function updateRequestOutput(item, host) {
+  const method = (item.method || 'GET').toUpperCase();
+  const params = item.params;
+  const lines = [];
+  lines.push(method + ' ' + item.value + ' HTTP/1.1');
+  lines.push('Host: ' + host);
+
+  const customRaw = document.getElementById('customHeaders').value.trim();
+  const customLines = customRaw ? customRaw.split('\n').map(l => l.trim()).filter(l => l && l.includes(':')) : [];
+  const usedHeaders = new Set(customLines.map(l => l.split(':')[0].trim().toLowerCase()));
+
+  if (params && params.headers && params.headers.length > 0) {
+    params.headers.forEach(function(h) {
+      if (!usedHeaders.has(h.name.toLowerCase())) {
+        lines.push(h.name + ': ' + h.value);
+        usedHeaders.add(h.name.toLowerCase());
+      }
+    });
+  }
+  customLines.forEach(function(l) { lines.push(l); });
+
+  if (!usedHeaders.has('user-agent')) lines.push('User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+  if (!usedHeaders.has('accept')) lines.push('Accept: */*');
+  lines.push('Accept-Language: en-US,en;q=0.9');
+  lines.push('Accept-Encoding: gzip, deflate, br');
+  lines.push('Connection: close');
+  if (['POST', 'PUT', 'PATCH'].includes(method) && !usedHeaders.has('content-type')) {
+    lines.push('Content-Type: application/json');
+  }
+  lines.push('');
+  if (['POST', 'PUT', 'PATCH'].includes(method) && params && params.body && params.body.length > 0) {
+    const body = {};
+    params.body.forEach(function(p) { body[typeof p === 'string' ? p : p.name] = typePlaceholder(typeof p === 'string' ? 'str' : p.type); });
+    lines.push(JSON.stringify(body, null, 2));
+  } else if (['POST', 'PUT', 'PATCH'].includes(method)) {
+    lines.push('{}');
+  }
+  document.getElementById('requestOutput').value = lines.join('\n');
+
+  const autoDiv = document.getElementById('autoHeaders');
+  const customCount = customLines.length;
+  const detectedCount = (params && params.headers) ? params.headers.length : 0;
+  const badge = document.getElementById('customHeadersBadge');
+  if (customCount > 0 || detectedCount > 0) {
+    badge.style.display = 'inline';
+    badge.textContent = '(' + (customCount + detectedCount) + ')';
+  } else { badge.style.display = 'none'; }
+  if (detectedCount > 0) {
+    autoDiv.innerHTML = '<span style="font-size:0.72rem;color:var(--text-secondary)">Detected: </span>' +
+      params.headers.map(h => '<span class="auto-header-tag" title="' + esc(h.name + ': ' + h.value) + '">' + esc(h.name) + '</span>').join('');
+  } else {
+    autoDiv.innerHTML = '';
+  }
+}
+
+function getFilteredItems(category, searchText, sourceVal) {
+  return state.findings[category].filter(item => {
+    if (sourceVal !== 'All' && item.source !== sourceVal) return false;
+    if (searchText && !item.value.toLowerCase().includes(searchText)) return false;
+    return true;
+  });
+}
+
+function updateStats() {
+  const c = CATEGORIES.map(k => state.findings[k].length);
+  document.getElementById('stats').textContent = 'E:' + c[0] + ' | U:' + c[1] + ' | S:' + c[2] + ' | M:' + c[3] + ' | F:' + c[4] + ' | D:' + c[5] + ' | V:' + c[6];
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function typePlaceholder(type) {
+  switch(type) {
+    case 'int': return 0;
+    case 'uuid': return '550e8400-e29b-41d4-a716-446655440000';
+    case 'email': return 'user@example.com';
+    case 'bool': return true;
+    case 'date': return '2024-01-01T00:00:00Z';
+    case 'url': return 'https://example.com';
+    default: return '';
+  }
+}
+
+function typeTag(type) {
+  if (!type || type === 'str') return '';
+  return '<span class="param-type param-type-' + type + '">' + type + '</span>';
+}
+
+function formatParamDetail(params) {
+  if (!params) return '-';
+  const parts = [];
+  if (params.path && params.path.length) {
+    params.path.forEach(function(p) {
+      const n = typeof p === 'string' ? p : p.name;
+      const t = typeof p === 'string' ? '' : typeTag(p.type);
+      parts.push('<span class="param-detail" title="path param">:' + esc(n) + t + '</span>');
+    });
+  }
+  if (params.body && params.body.length) {
+    params.body.forEach(function(p) {
+      const n = typeof p === 'string' ? p : p.name;
+      const t = typeof p === 'string' ? '' : typeTag(p.type);
+      parts.push('<span class="param-detail" title="body param">' + esc(n) + t + '</span>');
+    });
+  }
+  if (params.query && params.query.length) {
+    params.query.forEach(function(p) {
+      parts.push('<span class="param-detail" title="query param">?' + esc(p) + '</span>');
+    });
+  }
+  return parts.length > 0 ? parts.join(', ') : '-';
+}
+
+function copyText(text) {
+  try { navigator.clipboard.writeText(text); } catch {
+    const ta = document.createElement('textarea'); ta.value = text; ta.style.cssText = 'position:fixed;left:-9999px';
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+  }
+  showToast('Copied!');
+}
+
+function showToast(msg, isError) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast show' + (isError ? ' error' : '');
+  setTimeout(() => t.className = 'toast', 2000);
+}
+
+// ==================== EVENT LISTENERS ====================
+
+function switchTab(btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('active'); b.setAttribute('aria-selected', 'false'); });
+  btn.classList.add('active'); btn.setAttribute('aria-selected', 'true');
+  state.activeTab = btn.dataset.tab;
+  document.querySelectorAll('.result-table').forEach(t => t.classList.remove('active'));
+  document.getElementById('table-' + state.activeTab).classList.add('active');
+  state.selectedRow = null;
+  updatePagination();
+}
+document.getElementById('tabsBar').addEventListener('click', e => {
+  const btn = e.target.closest('.tab-btn'); if (!btn) return;
+  switchTab(btn);
+});
+document.getElementById('tabsBar').addEventListener('keydown', e => {
+  const tabs = [...document.querySelectorAll('.tab-btn')];
+  const idx = tabs.indexOf(e.target);
+  if (idx < 0) return;
+  let next = -1;
+  if (e.key === 'ArrowRight') next = (idx + 1) % tabs.length;
+  else if (e.key === 'ArrowLeft') next = (idx - 1 + tabs.length) % tabs.length;
+  else if (e.key === 'Home') next = 0;
+  else if (e.key === 'End') next = tabs.length - 1;
+  if (next >= 0) { e.preventDefault(); tabs[next].focus(); switchTab(tabs[next]); }
+});
+
+document.getElementById('search').addEventListener('input', () => { CATEGORIES.forEach(c => state.page[c] = 1); refreshUI(); });
+document.getElementById('sourceFilter').addEventListener('change', () => { CATEGORIES.forEach(c => state.page[c] = 1); refreshUI(); });
+
+document.getElementById('analyzeBtn').addEventListener('click', () => {
+  const text = document.getElementById('jsInput').value;
+  if (!text.trim()) return;
+  enqueueAnalysis(text, 'pasted-input');
+});
+
+document.getElementById('fileInput').addEventListener('change', e => { handleFiles(e.target.files); e.target.value = ''; });
+
+function handleFiles(files) {
+  Array.from(files).forEach(file => {
+    const reader = new FileReader();
+    reader.onload = ev => enqueueAnalysis(ev.target.result, file.name);
+    reader.readAsText(file);
+  });
+}
+
+const dropZone = document.getElementById('dropZone');
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files); });
+
+
+// ==================== CORS PROXY ====================
+const PROXY_LIST = [
+  { url: 'https://api.allorigins.win/get?url=', json: true },
+  { url: 'https://api.allorigins.win/raw?url=' },
+  { url: 'https://api.codetabs.com/v1/proxy?quest=' },
+];
+
+function fakeTextResponse(text) {
+  return { ok: true, status: 200, text: () => Promise.resolve(text), json: () => Promise.resolve(JSON.parse(text)) };
+}
+
+async function fetchViaProxy(proxyPrefix, targetUrl, isJson) {
+  const r = await fetch(proxyPrefix + encodeURIComponent(targetUrl));
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  if (isJson) {
+    const j = await r.json();
+    return fakeTextResponse(j.contents);
+  }
+  return r;
+}
+
+function getSelectedProxy() {
+  const sel = document.getElementById('proxySelect').value;
+  if (sel === 'auto') return null;
+  if (sel === 'local') return { url: getLocalProxyBase() };
+  if (sel === 'custom') return { url: document.getElementById('customProxy').value.trim() };
+  const found = PROXY_LIST.find(p => p.url === sel);
+  return found || { url: sel };
+}
+
+function getSameOriginProxyBase() {
+  return location.origin + '/proxy?url=';
+}
+
+async function autoProxyFetch(url) {
+  if (!document.getElementById('useProxy').checked) return fetch(url);
+  const proxy = getSelectedProxy();
+  if (proxy) return fetchViaProxy(proxy.url, url, proxy.json);
+  try { return await fetchViaProxy(getSameOriginProxyBase(), url); } catch {}
+  try { return await fetchViaProxy(getLocalProxyBase(), url); } catch {}
+  for (const p of PROXY_LIST) {
+    try {
+      return await fetchViaProxy(p.url, url, p.json);
+    } catch {}
+  }
+  throw new Error('All proxies failed');
+}
+
+// Local proxy embedded script
+const LOCAL_PROXY_PORT = 9090;
+const LOCAL_PROXY_SCRIPT = `const http=require("http"),https=require("https");
+const PORT=process.argv[2]||9090;
+function proxy(t,res){const u=new URL(t);const p=u.protocol==="https:"?https:http;
+const req=p.get(u,{headers:{"User-Agent":"Mozilla/5.0"}},r=>{
+if([301,302,303,307,308].includes(r.statusCode)&&r.headers.location)
+return proxy(new URL(r.headers.location,t).href,res);
+res.writeHead(r.statusCode,{"Content-Type":r.headers["content-type"]||"text/plain",
+"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"*"});r.pipe(res)});
+req.on("error",e=>{res.writeHead(502,{"Access-Control-Allow-Origin":"*"});res.end("Proxy error: "+e.message)});req.setTimeout(30000,()=>req.destroy())}
+http.createServer((req,res)=>{if(req.method==="OPTIONS"){res.writeHead(204,{
+"Access-Control-Allow-Origin":"*","Access-Control-Allow-Methods":"GET,POST,OPTIONS",
+"Access-Control-Allow-Headers":"*"});return res.end()}
+const u=new URL(req.url,"http://localhost:"+PORT);if(u.pathname!=="/proxy"){res.writeHead(200,{
+"Content-Type":"text/plain","Access-Control-Allow-Origin":"*"});
+return res.end("CORS Proxy running on port "+PORT+"\\nUsage: /proxy?url=<encoded-url>")}
+const target=u.searchParams.get("url");if(!target){res.writeHead(400,{"Access-Control-Allow-Origin":"*"});
+return res.end("Missing ?url= parameter")}
+if(!/^https?:\\/\\//i.test(target)){res.writeHead(400,{"Access-Control-Allow-Origin":"*","Content-Type":"text/plain"});
+return res.end("Only http/https URLs supported")}proxy(target,res)}).listen(PORT,()=>{
+console.log("CORS Proxy running at http://localhost:"+PORT+"/proxy?url=<target>")});`;
+
+function getLocalProxyBase() {
+  return 'http://localhost:' + LOCAL_PROXY_PORT + '/proxy?url=';
+}
+
+async function checkLocalProxy() {
+  const dot = document.getElementById('proxyStatusDot');
+  const text = document.getElementById('proxyStatusText');
+  text.textContent = 'Checking...';
+  dot.className = 'dot-off';
+  try {
+    const r = await fetch(getLocalProxyBase() + encodeURIComponent('https://httpbin.org/robots.txt'), { signal: AbortSignal.timeout(5000) });
+    if (r.ok) {
+      dot.className = 'dot-on';
+      text.textContent = 'Running on port ' + LOCAL_PROXY_PORT;
+      return true;
+    }
+  } catch {}
+  dot.className = 'dot-off';
+  text.textContent = 'Not running — start it with a command below';
+  return false;
+}
+
+function downloadProxyScript() {
+  const blob = new Blob([LOCAL_PROXY_SCRIPT], { type: 'application/javascript' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'cors-proxy.js';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+document.getElementById('downloadProxyBtn').addEventListener('click', downloadProxyScript);
+document.getElementById('proxyCheckBtn').addEventListener('click', checkLocalProxy);
+
+document.querySelectorAll('.copy-cmd').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const code = document.getElementById(btn.dataset.target);
+    navigator.clipboard.writeText(code.textContent).then(() => showToast('Copied!'));
+  });
+});
+
+document.getElementById('proxySelect').addEventListener('change', function() {
+  document.getElementById('customProxy').style.display = this.value === 'custom' ? '' : 'none';
+  const helpEl = document.getElementById('localProxyHelp');
+  if (this.value === 'local') {
+    helpEl.style.display = '';
+    checkLocalProxy();
+  } else {
+    helpEl.style.display = 'none';
+  }
+});
+
+// ==================== WEBSITE SCANNER ====================
+let discoveredJs = [];
+
+function resolveUrl(base, href) {
+  try { return new URL(href, base).href; } catch { return null; }
+}
+
+function extractJsUrls(html, baseUrl) {
+  const urls = new Set();
+  const srcRe = /<script[^>]+src\s*=\s*["']([^"']+)["']/gi;
+  let m;
+  while ((m = srcRe.exec(html)) !== null) {
+    const resolved = resolveUrl(baseUrl, m[1]);
+    if (resolved && /\.js(\?|$|#)/i.test(resolved)) urls.add(resolved);
+    else if (resolved) urls.add(resolved);
+  }
+  const importRe = /import\s+(?:.*?\s+from\s+)?["']([^"']+\.(?:js|mjs))["']/g;
+  while ((m = importRe.exec(html)) !== null) {
+    const resolved = resolveUrl(baseUrl, m[1]);
+    if (resolved) urls.add(resolved);
+  }
+  return [...urls];
+}
+
+function renderJsList() {
+  const list = document.getElementById('jsList');
+  list.innerHTML = '';
+  list.style.display = discoveredJs.length ? 'block' : 'none';
+  document.getElementById('scannerActions').style.display = discoveredJs.length ? 'flex' : 'none';
+  for (let i = 0; i < discoveredJs.length; i++) {
+    const js = discoveredJs[i];
+    const div = document.createElement('div');
+    div.className = 'js-item';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = js.selected !== false;
+    cb.addEventListener('change', () => { discoveredJs[i].selected = cb.checked; });
+    const urlSpan = document.createElement('span');
+    urlSpan.className = 'js-item-url';
+    urlSpan.textContent = js.url.startsWith('data:') ? js.url.slice(0, 60) + '...' : js.url;
+    urlSpan.title = js.url.startsWith('data:') ? 'data: URI (' + formatSize(js.url.length) + ')' : js.url;
+    const sizeSpan = document.createElement('span');
+    sizeSpan.className = 'js-item-size';
+    sizeSpan.textContent = js.size || '';
+    sizeSpan.id = 'jsSize' + i;
+    const statusSpan = document.createElement('span');
+    statusSpan.className = 'js-item-status wait';
+    statusSpan.textContent = js.status === 'done' ? '✓' : js.status === 'error' ? '✗' : '•';
+    if (js.status === 'done') statusSpan.className = 'js-item-status done';
+    else if (js.status === 'error') statusSpan.className = 'js-item-status err';
+    statusSpan.id = 'jsStatus' + i;
+    const scanBtn = document.createElement('button');
+    scanBtn.textContent = js.status === 'done' ? 'Done' : 'Scan';
+    scanBtn.disabled = js.status === 'done' || js.status === 'scanning';
+    scanBtn.addEventListener('click', () => scanSingleJs(i));
+    scanBtn.id = 'jsScanBtn' + i;
+    div.appendChild(cb);
+    div.appendChild(urlSpan);
+    div.appendChild(sizeSpan);
+    div.appendChild(statusSpan);
+    div.appendChild(scanBtn);
+    list.appendChild(div);
+  }
+}
+
+function updateJsItemStatus(idx, status, size) {
+  const js = discoveredJs[idx];
+  js.status = status;
+  if (size) js.size = size;
+  const statusEl = document.getElementById('jsStatus' + idx);
+  const sizeEl = document.getElementById('jsSize' + idx);
+  const btnEl = document.getElementById('jsScanBtn' + idx);
+  if (statusEl) {
+    statusEl.textContent = status === 'done' ? '✓' : status === 'error' ? '✗' : status === 'scanning' ? '○' : '•';
+    statusEl.className = 'js-item-status ' + (status === 'done' ? 'done' : status === 'error' ? 'err' : 'wait');
+  }
+  if (sizeEl && size) sizeEl.textContent = size;
+  if (btnEl) {
+    btnEl.textContent = status === 'done' ? 'Done' : status === 'error' ? 'Retry' : status === 'scanning' ? '...' : 'Scan';
+    btnEl.disabled = status === 'scanning';
+  }
+}
+
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + 'B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + 'KB';
+  return (bytes / 1024 / 1024).toFixed(1) + 'MB';
+}
+
+function decodeDataUri(uri) {
+  const m = uri.match(/^data:[^,]*?;base64,(.+)$/i);
+  if (m) try { return atob(m[1]); } catch { return null; }
+  const m2 = uri.match(/^data:[^,]*,(.+)$/i);
+  if (m2) try { return decodeURIComponent(m2[1]); } catch { return null; }
+  return null;
+}
+
+async function scanSingleJs(idx) {
+  const js = discoveredJs[idx];
+  updateJsItemStatus(idx, 'scanning');
+  try {
+    let text, name;
+    if (js.url.startsWith('data:')) {
+      text = decodeDataUri(js.url);
+      if (!text) throw new Error('Cannot decode data URI');
+      name = 'data-uri-' + (idx + 1);
+    } else {
+      const resp = await autoProxyFetch(js.url);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      text = await resp.text();
+      name = js.url.split('/').pop().split('?')[0] || js.url;
+    }
+    updateJsItemStatus(idx, 'done', formatSize(text.length));
+    await enqueueAnalysis(text, name.length > 50 ? name.slice(0, 50) + '...' : name);
+  } catch {
+    updateJsItemStatus(idx, 'error');
+    showToast('Failed: ' + (js.url.startsWith('data:') ? 'data-uri-' + (idx + 1) : js.url.split('/').pop().slice(0, 30)), true);
+  }
+}
+
+async function scanMultipleJs(indices) {
+  const statusEl = document.getElementById('scannerStatus');
+  for (let n = 0; n < indices.length; n++) {
+    const idx = indices[n];
+    if (discoveredJs[idx].status === 'done') continue;
+    statusEl.innerHTML = 'Scanning <span>' + (n + 1) + '/' + indices.length + '</span> JS files...';
+    statusEl.style.display = 'block';
+    await scanSingleJs(idx);
+  }
+  const done = discoveredJs.filter(j => j.status === 'done').length;
+  statusEl.innerHTML = 'Complete: <span>' + done + '/' + discoveredJs.length + '</span> JS files scanned';
+}
+
+function isJsUrl(url) {
+  const path = url.split('?')[0].split('#')[0].toLowerCase();
+  return /\.(js|mjs|cjs|jsx|ts|tsx)$/.test(path);
+}
+
+function looksLikeJs(text) {
+  const trimmed = text.trimStart();
+  if (trimmed.startsWith('<!') || trimmed.startsWith('<html') || trimmed.startsWith('<head') || trimmed.startsWith('<body')) return false;
+  if (/<\/?[a-z][a-z0-9]*[\s>]/i.test(trimmed.slice(0, 500))) return false;
+  return true;
+}
+
+document.getElementById('scanBtn').addEventListener('click', async () => {
+  let url = document.getElementById('scanUrl').value.trim();
+  if (!url) return;
+  if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+  const scanBtn = document.getElementById('scanBtn');
+  const statusEl = document.getElementById('scannerStatus');
+  scanBtn.disabled = true;
+  statusEl.style.display = 'block';
+  statusEl.innerHTML = 'Fetching <span>' + esc(url) + '</span>...';
+  discoveredJs = [];
+  renderJsList();
+  try {
+    const resp = await autoProxyFetch(url);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const text = await resp.text();
+
+    if (isJsUrl(url) || looksLikeJs(text)) {
+      const name = url.split('/').pop().split('?')[0] || url;
+      statusEl.innerHTML = 'Detected <span>JavaScript</span> — analyzing <span>' + formatSize(text.length) + '</span>...';
+      await enqueueAnalysis(text, name.length > 50 ? name.slice(0, 50) + '...' : name);
+      statusEl.innerHTML = 'Analyzed <span>' + esc(name.length > 40 ? name.slice(0, 40) + '...' : name) + '</span> (' + formatSize(text.length) + ')';
+    } else {
+      const jsUrls = extractJsUrls(text, url);
+      discoveredJs = jsUrls.map(u => ({ url: u, status: 'pending', selected: true, size: '' }));
+      statusEl.innerHTML = 'Found <span>' + jsUrls.length + '</span> JS file' + (jsUrls.length !== 1 ? 's' : '');
+      renderJsList();
+      const inlineScripts = [];
+      const inlineRe = /<script(?![^>]*\bsrc\b)[^>]*>([\s\S]*?)<\/script>/gi;
+      let im;
+      while ((im = inlineRe.exec(text)) !== null) {
+        const code = im[1].trim();
+        if (code.length >= 50) inlineScripts.push(code);
+      }
+      if (inlineScripts.length > 0) {
+        const allInline = inlineScripts.join('\n');
+        const pageName = new URL(url).hostname;
+        await enqueueAnalysis(allInline, pageName + ' (inline)');
+        statusEl.innerHTML = 'Found <span>' + jsUrls.length + '</span> JS file' + (jsUrls.length !== 1 ? 's' : '') + ' + <span>' + inlineScripts.length + '</span> inline script' + (inlineScripts.length !== 1 ? 's' : '') + ' (analyzed)';
+      }
+    }
+  } catch {
+    const proxyOn = document.getElementById('useProxy').checked;
+    const proxyHint = proxyOn ? ' Proxy may be down — try a different one.' : ' Enable <b>CORS Proxy</b> above to bypass.';
+    statusEl.innerHTML = '<span style="color:var(--danger)">Scan failed - CORS or network error.</span>' + proxyHint;
+  }
+  scanBtn.disabled = false;
+});
+
+document.getElementById('scanAllBtn').addEventListener('click', () => {
+  const indices = discoveredJs.map((_, i) => i);
+  scanMultipleJs(indices);
+});
+
+document.getElementById('scanSelectedBtn').addEventListener('click', () => {
+  const indices = discoveredJs.map((j, i) => j.selected !== false ? i : -1).filter(i => i >= 0);
+  if (!indices.length) { showToast('No JS files selected'); return; }
+  scanMultipleJs(indices);
+});
+
+document.getElementById('selectAllJs').addEventListener('click', () => {
+  discoveredJs.forEach(j => j.selected = true);
+  document.querySelectorAll('.js-item input[type="checkbox"]').forEach(cb => cb.checked = true);
+});
+
+document.getElementById('deselectAllJs').addEventListener('click', () => {
+  discoveredJs.forEach(j => j.selected = false);
+  document.querySelectorAll('.js-item input[type="checkbox"]').forEach(cb => cb.checked = false);
+});
+
+document.getElementById('copyBtn').addEventListener('click', () => { if (state.selectedRow) copyText(state.selectedRow); else showToast('Select a row first'); });
+
+document.getElementById('copyAllBtn').addEventListener('click', () => {
+  const items = getFilteredItems(state.activeTab, document.getElementById('search').value.toLowerCase().trim(), document.getElementById('sourceFilter').value);
+  if (!items.length) { showToast('Nothing to copy'); return; }
+  copyText(items.map(i => i.value).join('\n'));
+});
+
+document.getElementById('clearBtn').addEventListener('click', () => { clearState(); showToast('Cleared'); });
+
+document.getElementById('exportJsonBtn').addEventListener('click', () => { if (!hasFindings()) { showToast('No findings to save'); return; } exportJSON(); });
+document.getElementById('exportTxtBtn').addEventListener('click', () => { if (!hasFindings()) { showToast('No findings to save'); return; } exportTXT(); });
+document.getElementById('exportCsvBtn').addEventListener('click', () => { if (!hasFindings()) { showToast('No findings to save'); return; } exportCSV(); });
+
+document.getElementById('resultsContainer').addEventListener('click', e => {
+  const th = e.target.closest('th'); if (!th || !th.dataset.col) return;
+  const col = th.dataset.col, table = th.closest('.result-table'), cat = table.id.replace('table-', '');
+  const cur = state.sortState[cat];
+  state.sortState[cat] = cur && cur.col === col ? { col, asc: !cur.asc } : { col, asc: true };
+  refreshUI();
+});
+
+document.getElementById('pagePrev').addEventListener('click', () => {
+  const cat = state.activeTab;
+  if (getPage(cat) > 1) { state.page[cat]--; refreshUI(); document.getElementById('resultsContainer').scrollTop = 0; }
+});
+document.getElementById('pageNext').addEventListener('click', () => {
+  const cat = state.activeTab;
+  const searchText = document.getElementById('search').value.toLowerCase().trim();
+  const sourceVal = document.getElementById('sourceFilter').value;
+  const total = getFilteredItems(cat, searchText, sourceVal).length;
+  const totalPages = Math.ceil(total / getPerPage());
+  if (getPage(cat) < totalPages) { state.page[cat]++; refreshUI(); document.getElementById('resultsContainer').scrollTop = 0; }
+});
+document.getElementById('perPage').addEventListener('change', () => { CATEGORIES.forEach(c => state.page[c] = 1); refreshUI(); });
+
+document.getElementById('customHeadersToggle').addEventListener('click', () => {
+  const body = document.getElementById('customHeadersBody');
+  const arrow = document.getElementById('customHeadersArrow');
+  const open = body.classList.toggle('open');
+  arrow.classList.toggle('open', open);
+});
+
+document.getElementById('copyRequestBtn').addEventListener('click', () => {
+  const text = document.getElementById('requestOutput').value;
+  if (text) copyText(text);
+});
+document.getElementById('closeRequestBtn').addEventListener('click', () => {
+  document.getElementById('requestPanel').style.display = 'none';
+  currentRequestItem = null;
+});
+document.getElementById('requestHost').addEventListener('input', () => {
+  if (currentRequestItem) updateRequestOutput(currentRequestItem, document.getElementById('requestHost').value || 'target.com');
+});
+document.getElementById('customHeaders').addEventListener('input', () => {
+  if (currentRequestItem) updateRequestOutput(currentRequestItem, document.getElementById('requestHost').value || 'target.com');
+});
+document.getElementById('autoHeaders').addEventListener('click', (e) => {
+  const tag = e.target.closest('.auto-header-tag');
+  if (!tag) return;
+  const hdr = tag.getAttribute('title');
+  if (!hdr) return;
+  const ta = document.getElementById('customHeaders');
+  const existing = ta.value.trim();
+  if (existing.includes(hdr.split(':')[0])) return;
+  ta.value = existing ? existing + '\n' + hdr : hdr;
+  if (currentRequestItem) updateRequestOutput(currentRequestItem, document.getElementById('requestHost').value || 'target.com');
+});
+
+refreshUI();
+</script>
+</body>
+</html>
